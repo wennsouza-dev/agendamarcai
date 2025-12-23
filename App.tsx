@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { ViewState, BookingContext, Appointment, AppointmentStatus } from './types';
 import { Layout } from './components/Layout';
@@ -13,6 +14,7 @@ import { ClientDashboardView } from './views/ClientDashboardView';
 import { ProDashboardView } from './views/ProDashboardView';
 import { AuthView } from './views/AuthView';
 import { AdminDashboardView } from './views/AdminDashboardView';
+import { ReviewView } from './views/ReviewView';
 
 const App: React.FC = () => {
   const [view, setView] = useState<ViewState>('LANDING');
@@ -33,18 +35,27 @@ const App: React.FC = () => {
       setSession(session);
     });
 
+    // Handle Review Link
+    const params = new URLSearchParams(window.location.search);
+    const viewParam = params.get('view');
+    const idParam = params.get('id');
+    if (viewParam === 'review' && idParam) {
+      setView('CLIENT_REVIEW');
+    }
+
     return () => subscription.unsubscribe();
   }, []);
 
   const navigateTo = useCallback((nextView: ViewState) => {
-    // Protected routes check
-    const protectedViews: ViewState[] = ['PRO_DASHBOARD', 'CLIENT_DASHBOARD', 'ADMIN_DASHBOARD'];
+    const protectedViews: ViewState[] = [
+      'PRO_DASHBOARD', 'PRO_AGENDA', 'PRO_HOURS', 'PRO_SERVICES', 'PRO_SETTINGS',
+      'CLIENT_DASHBOARD', 'ADMIN_DASHBOARD'
+    ];
     if (protectedViews.includes(nextView) && !session && !loading) {
       setView('AUTH');
       return;
     }
 
-    // Admin check
     if (nextView === 'ADMIN_DASHBOARD' && session?.user?.email !== 'wennsouza@gmail.com') {
       alert('Acesso não autorizado.');
       return;
@@ -59,19 +70,31 @@ const App: React.FC = () => {
     navigateTo('CLIENT_BOOKING');
   }, [navigateTo]);
 
-  const confirmBooking = useCallback((date: string, time: string) => {
+  const confirmBooking = useCallback(async (date: string, time: string, clientName: string, clientWhatsApp: string) => {
     if (!bookingContext) return;
 
-    const newAppointment: Appointment = {
-      id: Math.random().toString(36).substr(2, 9),
-      professional: bookingContext.professional,
-      service: bookingContext.service,
-      date,
-      time,
-      status: AppointmentStatus.CONFIRMED
-    };
+    const { data, error } = await supabase
+      .from('appointments')
+      .insert([
+        {
+          professional_id: bookingContext.professional.id,
+          service_name: bookingContext.service.name,
+          date: date,
+          time: time,
+          client_name: clientName,
+          client_whatsapp: clientWhatsApp,
+          status: 'pending'
+        }
+      ])
+      .select()
+      .single();
 
-    setAppointments(prev => [newAppointment, ...prev]);
+    if (error) {
+      alert('Erro ao salvar agendamento: ' + error.message);
+      return;
+    }
+
+    setAppointments(prev => [data as any, ...prev]);
     navigateTo('CLIENT_CONFIRMATION');
   }, [bookingContext, navigateTo]);
 
@@ -89,17 +112,15 @@ const App: React.FC = () => {
             return;
           }
 
-          // Check if user is a professional and active
           const { data: pro } = await supabase
             .from('professionals')
             .select('*')
-            .eq('user_id', session?.user?.id) // Currently linked via Trigger? 
-            // Fallback: If trigger hasn't run yet or failed, check by email
+            .eq('user_id', session?.user?.id)
             .or(`email.eq.${session?.user?.email}`)
-            .single();
+            .maybeSingle();
 
           if (pro) {
-            if (pro.expire_days <= 0) {
+            if (pro.expire_days === 0) {
               alert('Sua assinatura expirou. Entre em contato com o administrador.');
               await supabase.auth.signOut();
               setView('AUTH');
@@ -107,9 +128,6 @@ const App: React.FC = () => {
               navigateTo('PRO_DASHBOARD');
             }
           } else {
-            // Not a professional? Maybe just a client or unlinked.
-            // For now, default to Pro Dashboard but maybe we should warn?
-            // Assuming this app is for Pros to manage their agenda.
             navigateTo('PRO_DASHBOARD');
           }
         }} />;
@@ -124,14 +142,34 @@ const App: React.FC = () => {
             service={bookingContext.service}
             onConfirm={confirmBooking}
             onBack={() => navigateTo('CLIENT_SEARCH')}
+            onServiceChange={(s) => setBookingContext({ ...bookingContext, service: s })}
           />
         ) : null;
+      case 'CLIENT_REVIEW':
+        const reviewId = new URLSearchParams(window.location.search).get('id');
+        return reviewId ? (
+          <ReviewView
+            appointmentId={reviewId}
+            onSuccess={() => {
+              window.history.replaceState({}, '', window.location.pathname);
+              navigateTo('LANDING');
+            }}
+          />
+        ) : <LandingView setView={navigateTo} />;
       case 'CLIENT_CONFIRMATION':
         return <ConfirmationView setView={navigateTo} />;
       case 'CLIENT_DASHBOARD':
         return <ClientDashboardView appointments={appointments} onNewAppointment={() => navigateTo('CLIENT_SEARCH')} />;
       case 'PRO_DASHBOARD':
-        return <ProDashboardView />;
+        return <ProDashboardView currentSection="OVERVIEW" onNavigate={navigateTo} />;
+      case 'PRO_AGENDA':
+        return <ProDashboardView currentSection="AGENDA" onNavigate={navigateTo} />;
+      case 'PRO_HOURS':
+        return <ProDashboardView currentSection="HOURS" onNavigate={navigateTo} />;
+      case 'PRO_SERVICES':
+        return <ProDashboardView currentSection="SERVICES" onNavigate={navigateTo} />;
+      case 'PRO_SETTINGS':
+        return <ProDashboardView currentSection="SETTINGS" onNavigate={navigateTo} />;
       default:
         return <LandingView setView={navigateTo} />;
     }

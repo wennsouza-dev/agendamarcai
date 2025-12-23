@@ -88,8 +88,8 @@ export const Footer: React.FC = () => (
 );
 
 export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, userEmail }) => {
-  const isDashboard = currentView === 'PRO_DASHBOARD' || currentView === 'CLIENT_DASHBOARD' || currentView === 'ADMIN_DASHBOARD';
-  const userType = currentView === 'PRO_DASHBOARD' ? 'PRO' : 'CLIENT';
+  const isDashboard = currentView.startsWith('PRO_') || currentView === 'CLIENT_DASHBOARD' || currentView === 'ADMIN_DASHBOARD';
+  const userType = currentView.startsWith('PRO_') || currentView === 'ADMIN_DASHBOARD' ? 'PRO' : 'CLIENT';
 
   if (isDashboard) {
     return (

@@ -109,6 +109,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess }) => {
                         type="submit"
                         disabled={loading}
                         className="w-full py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/20 hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed transition-all flex justify-center items-center gap-2"
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleAuth(e as any);
+                        }}
                     >
                         {loading && <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>}
                         {isLogin ? 'Entrar' : 'Criar Conta'}

@@ -19,24 +19,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, userType
         {
             label: 'Agendamentos',
             icon: 'calendar_month',
-            view: userType === 'PRO' ? 'PRO_DASHBOARD' : 'CLIENT_DASHBOARD' // Placeholder
+            view: userType === 'PRO' ? 'PRO_AGENDA' : 'CLIENT_DASHBOARD'
         },
         {
-            label: 'Clientes',
-            icon: 'group',
-            view: 'PRO_DASHBOARD',
+            label: 'Horários',
+            icon: 'schedule',
+            view: 'PRO_HOURS',
             visible: userType === 'PRO'
         },
         {
             label: 'Serviços',
             icon: 'cut',
-            view: 'PRO_DASHBOARD',
+            view: 'PRO_SERVICES',
             visible: userType === 'PRO'
         },
         {
             label: 'Configurações',
             icon: 'settings',
-            view: 'PRO_DASHBOARD' // Placeholder
+            view: 'PRO_SETTINGS',
+            visible: userType === 'PRO'
         },
         {
             label: 'Administração',

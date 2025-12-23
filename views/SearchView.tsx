@@ -26,14 +26,22 @@ export const SearchView: React.FC<SearchViewProps> = ({ onSelectProfessional }) 
 
   const fetchProfessionals = async () => {
     setLoading(true);
-    // Only fetch professionals that are NOT expired (expire_days > 0)
+    // Fetch professionals and their reviews for dynamic rating calculation
     const { data } = await supabase
       .from('professionals')
-      .select('*')
-      .gt('expire_days', 0)
-      .order('rating', { ascending: false });
+      .select('*, reviews(rating)')
+      .neq('expire_days', 0);
 
-    if (data) setProfessionals(data);
+    if (data) {
+      const processed = data.map(pro => {
+        const reviews = pro.reviews || [];
+        const avg = reviews.length > 0
+          ? reviews.reduce((acc: number, r: any) => acc + r.rating, 0) / reviews.length
+          : 5.0;
+        return { ...pro, rating: avg, reviewCount: reviews.length };
+      });
+      setProfessionals(processed);
+    }
     setLoading(false);
   };
 

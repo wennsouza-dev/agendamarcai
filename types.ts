@@ -17,6 +17,8 @@ export interface Service {
   duration: number; // in minutes
   price: number;
   category: string;
+  pre_schedule_enabled?: boolean;
+  pre_schedule_message?: string;
 }
 
 export interface Professional {
@@ -25,10 +27,15 @@ export interface Professional {
   specialty: string;
   rating: number;
   reviewCount: number;
-  avatar: string;
+  avatar: string; // Legacy
+  image_url?: string; // New
   distance?: string;
   services: Service[];
   location: string;
+  whatsapp?: string;
+  address?: string;
+  working_hours?: WorkingHours[];
+  special_dates?: SpecialDate[];
 }
 
 export interface Appointment {
@@ -40,6 +47,25 @@ export interface Appointment {
   status: AppointmentStatus;
 }
 
+export interface WorkingHours {
+  day: number; // 0-6 (Sun-Sat)
+  enabled: boolean;
+  start: string; // "HH:mm"
+  end: string;
+  lunchStart?: string;
+  lunchEnd?: string;
+  lunchEnabled: boolean;
+}
+
+export interface SpecialDate {
+  id: string;
+  date: string; // "YYYY-MM-DD"
+  note: string;
+  isClosed: boolean;
+  start?: string;
+  end?: string;
+}
+
 export type ViewState =
   | 'LANDING'
   | 'AUTH'
@@ -47,10 +73,22 @@ export type ViewState =
   | 'CLIENT_BOOKING'
   | 'CLIENT_CONFIRMATION'
   | 'CLIENT_DASHBOARD'
+  | 'CLIENT_REVIEW'
   | 'PRO_DASHBOARD'
   | 'PRO_AGENDA'
   | 'PRO_SERVICES'
+  | 'PRO_HOURS'
+  | 'PRO_SETTINGS'
   | 'ADMIN_DASHBOARD';
+
+export interface Review {
+  id: string;
+  professional_id: string;
+  client_name: string;
+  rating: number;
+  comment?: string;
+  created_at: string;
+}
 
 export interface BookingContext {
   professional: Professional;
