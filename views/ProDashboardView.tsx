@@ -20,11 +20,10 @@ const BackButton = ({ onClick }: { onClick?: () => void }) => (
   </button>
 );
 
-const OverviewSection = () => {
+const OverviewSection = ({ professional }: { professional: any }) => {
   const [appointments, setAppointments] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [reviews, setReviews] = React.useState<Review[]>([]);
-  const [proId, setProId] = React.useState<string | null>(null);
   const [isOnline, setIsOnline] = React.useState(true);
   const [stats, setStats] = React.useState({
     totalCompleted: 0,
@@ -34,83 +33,132 @@ const OverviewSection = () => {
   });
 
   const fetchOverviewData = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) return;
+    if (!professional) return;
 
-    const { data: pro } = await supabase
-      .from('professionals')
-      .select('id, services')
-      .or(`user_id.eq.${session.user.id},email.eq.${session.user.email}`)
-      .maybeSingle();
+    // 1. Fetch Today's Upcoming (not necessarily completed)
+    const { data: upcoming } = await supabase
+      .from('appointments')
+      .select('*')
+      .eq('professional_id', professional.id)
+      .neq('status', 'cancelled')
+      .gte('date', new Date().toISOString().split('T')[0])
+      .order('time', { ascending: true })
+      .limit(3);
 
-    if (pro) {
-      setProId(pro.id);
-      // 1. Fetch Today's Upcoming (not necessarily completed)
-      const { data: upcoming } = await supabase
-        .from('appointments')
-        .select('*')
-        .eq('professional_id', pro.id)
-        .neq('status', 'cancelled')
-        .gte('date', new Date().toISOString().split('T')[0])
-        .order('time', { ascending: true })
-        .limit(3);
+    if (upcoming) setAppointments(upcoming);
 
-      if (upcoming) setAppointments(upcoming);
+    // 2. Fetch ALL appointments to calculate cumulative stats
+    const { data: allApps } = await supabase
+      .from('appointments')
+      .select('*')
+      .eq('professional_id', professional.id);
 
-      // 2. Fetch ALL appointments to calculate cumulative stats
-      const { data: allApps } = await supabase
-        .from('appointments')
-        .select('*')
-        .eq('professional_id', pro.id);
+    if (allApps) {
+      const completed = allApps.filter(a => a.status === 'completed');
 
-      if (allApps) {
-        const completed = allApps.filter(a => a.status === 'completed');
+      const brNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+      const todayStr = brNow.toISOString().split('T')[0];
 
-        const brNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
-        const todayStr = brNow.toISOString().split('T')[0];
+      const completedToday = completed.filter(a => a.date?.startsWith(todayStr)).length;
 
-        const completedToday = completed.filter(a => a.date === todayStr).length;
+      const currentMonth = brNow.getMonth();
+      const currentYear = brNow.getFullYear();
 
-        const currentMonth = brNow.getMonth();
-        const currentYear = brNow.getFullYear();
+      const monthlyCompleted = completed.filter(a => {
+        const d = new Date(a.date);
+        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+      });
 
-        const monthlyCompleted = completed.filter(a => {
-          const d = new Date(a.date);
-          return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-        });
+      // Sum prices from pro.services based on service_name
+      const earnings = monthlyCompleted.reduce((acc, app) => {
+        const service = professional.services?.find((s: any) => s.name === app.service_name);
+        return acc + (service?.price || 0);
+      }, 0);
 
-        // Sum prices from pro.services based on service_name
-        const earnings = monthlyCompleted.reduce((acc, app) => {
-          const service = pro.services?.find((s: any) => s.name === app.service_name);
-          return acc + (service?.price || 0);
-        }, 0);
-
-        setStats({
-          totalCompleted: completed.length,
-          completedToday,
-          monthlyEarnings: earnings,
-          nextTime: upcoming?.find(a => a.status === 'confirmed')?.time || upcoming?.[0]?.time || '--:--'
-        });
-      }
-
-      // 3. Fetch Reviews
-      const { data: revData } = await supabase
-        .from('reviews')
-        .select('*')
-        .eq('professional_id', pro.id)
-        .order('created_at', { ascending: false });
-
-      if (revData) setReviews(revData);
+      setStats({
+        totalCompleted: completed.length,
+        completedToday,
+        monthlyEarnings: earnings,
+        nextTime: upcoming?.find(a => a.status === 'confirmed')?.time || upcoming?.[0]?.time || '--:--'
+      });
     }
+
+    // 3. Fetch Reviews
+    const { data: revData } = await supabase
+      .from('reviews')
+      .select('*')
+      .eq('professional_id', professional.id)
+      .order('created_at', { ascending: false });
+
+    if (revData) setReviews(revData);
     setLoading(false);
   };
 
   React.useEffect(() => {
     fetchOverviewData();
-  }, []);
+  }, [professional]);
+
+  const handleAction = async (id: string, action: string) => {
+    const appointment = appointments.find(a => a.id === id);
+    if (!appointment || !professional) return;
+
+    if (action === 'delete') {
+      if (!confirm('Tem certeza que deseja excluir este agendamento?')) return;
+      await supabase.from('appointments').delete().eq('id', id);
+      fetchOverviewData();
+      return;
+    }
+
+    const clientPhone = appointment.client_whatsapp?.replace(/\D/g, '');
+    const clientName = appointment.client_name || 'Cliente';
+    const serviceName = appointment.service_name || 'Serviço';
+
+    let dateStr = 'Hoje';
+    if (appointment.date) {
+      const parts = appointment.date.split('-');
+      if (parts.length === 3) dateStr = `${parts[2]}/${parts[1]}`;
+    }
+    const timeStr = appointment.time;
+
+    let message = '';
+    const reviewUrl = `${window.location.origin}?view=review&id=${appointment.id}`;
+
+    if (action === 'confirm') {
+      message = `Olá ${clientName}, seu agendamento de *${serviceName}* para o dia *${dateStr}* às *${timeStr}* foi confirmado! ✅ Nos vemos em breve.`;
+    } else if (action === 'cancel') {
+      message = `Olá ${clientName}, infelizmente tive que cancelar seu agendamento de *${serviceName}* para o dia *${dateStr}* às *${timeStr}*. ❌`;
+    } else if (action === 'complete') {
+      message = `Olá ${clientName}, seu atendimento de *${serviceName}* foi finalizado! ✨ Agradecemos a preferência. \n\nPor favor, conte-nos como foi sua experiência avaliando nosso serviço aqui: ${reviewUrl}`;
+    } else if (action === 'pre-schedule') {
+      const service = professional.services?.find((s: any) => s.name === appointment.service_name);
+      const instructions = service?.pre_schedule_message || 'Favor seguir as instruções para confirmação.';
+      message = `Olá ${clientName}, estamos pré-agendando seu atendimento de *${serviceName}* para o dia *${dateStr}* às *${timeStr}*. \n\n${instructions}`;
+    }
+
+    if (clientPhone && message) {
+      const cleanPhone = clientPhone.startsWith('55') ? clientPhone : `55${clientPhone}`;
+      const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+      window.open(waUrl, '_blank');
+    } else if (!clientPhone && action !== 'delete') {
+      alert('Atenção: O cliente não possui um número de WhatsApp cadastrado para envio automático.');
+    }
+
+    const statusMap: any = {
+      'confirm': 'confirmed',
+      'pre-schedule': 'pre-scheduled',
+      'cancel': 'cancelled',
+      'complete': 'completed'
+    };
+    const newStatus = statusMap[action];
+    if (newStatus) {
+      await supabase.from('appointments').update({ status: newStatus }).eq('id', id);
+    }
+    fetchOverviewData();
+  };
 
   const copyBookingLink = () => {
-    const url = `${window.location.origin}/?p=${proId}`;
+    if (!professional) return;
+    const url = `${window.location.origin}/?p=${professional.id}`;
     navigator.clipboard.writeText(url);
     alert('Link de agendamento copiado para a área de transferência!');
   };
@@ -164,10 +212,14 @@ const OverviewSection = () => {
               appointments.map(app => (
                 <AppointmentCard
                   key={app.id}
+                  id={app.id}
                   time={app.time}
+                  date={app.date}
                   client={app.client_name}
+                  whatsapp={app.client_whatsapp}
                   service={app.service_name}
-                  status={app.status}
+                  status={app.status || 'pending'}
+                  onAction={(action) => handleAction(app.id, action)}
                 />
               ))
             ) : (
@@ -195,42 +247,33 @@ const OverviewSection = () => {
 };
 // Local ReviewCarousel definition removed (now imported from components)
 
-const AgendaSection = ({ onBack }: { onBack?: () => void }) => {
+const AgendaSection = ({ professional, onBack }: { professional: any, onBack?: () => void }) => {
   const [appointments, setAppointments] = React.useState<any[]>([]);
   const [reviews, setReviews] = React.useState<Review[]>([]);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
     fetchAppointments();
-  }, []);
+  }, [professional]);
 
   const fetchAppointments = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) return;
+    if (!professional) return;
 
-    const { data: pro } = await supabase
-      .from('professionals')
-      .select('id')
-      .or(`user_id.eq.${session.user.id},email.eq.${session.user.email}`)
-      .maybeSingle();
+    const { data } = await supabase
+      .from('appointments')
+      .select('*')
+      .eq('professional_id', professional.id)
+      .order('date', { ascending: false });
 
-    if (pro) {
-      const { data } = await supabase
-        .from('appointments')
-        .select('*')
-        .eq('professional_id', pro.id)
-        .order('date', { ascending: false });
+    if (data) setAppointments(data);
 
-      if (data) setAppointments(data);
+    const { data: revData } = await supabase
+      .from('reviews')
+      .select('*')
+      .eq('professional_id', professional.id)
+      .order('created_at', { ascending: false });
 
-      const { data: revData } = await supabase
-        .from('reviews')
-        .select('*')
-        .eq('professional_id', pro.id)
-        .order('created_at', { ascending: false });
-
-      if (revData) setReviews(revData);
-    }
+    if (revData) setReviews(revData);
     setLoading(false);
   };
 
@@ -245,7 +288,6 @@ const AgendaSection = ({ onBack }: { onBack?: () => void }) => {
       return;
     }
 
-    // Prepare WhatsApp message
     const clientPhone = appointment.client_whatsapp?.replace(/\D/g, '');
     const clientName = appointment.client_name || 'Cliente';
     const serviceName = appointment.service_name || 'Serviço';
@@ -253,9 +295,7 @@ const AgendaSection = ({ onBack }: { onBack?: () => void }) => {
     let dateStr = 'Hoje';
     if (appointment.date) {
       const parts = appointment.date.split('-');
-      if (parts.length === 3) {
-        dateStr = `${parts[2]}/${parts[1]}`;
-      }
+      if (parts.length === 3) dateStr = `${parts[2]}/${parts[1]}`;
     }
     const timeStr = appointment.time;
 
@@ -269,20 +309,19 @@ const AgendaSection = ({ onBack }: { onBack?: () => void }) => {
     } else if (action === 'complete') {
       message = `Olá ${clientName}, seu atendimento de *${serviceName}* foi finalizado! ✨ Agradecemos a preferência. \n\nPor favor, conte-nos como foi sua experiência avaliando nosso serviço aqui: ${reviewUrl}`;
     } else if (action === 'pre-schedule') {
-      const { data: pro } = await supabase.from('professionals').select('services').eq('id', appointment.professional_id).single();
-      const service = pro?.services?.find((s: any) => s.name === appointment.service_name);
-      message = service?.pre_schedule_message || `Olá ${clientName}, estamos pré-agendando seu atendimento de *${serviceName}* para o dia *${dateStr}* às *${timeStr}*. Favor seguir as instruções para confirmação.`;
+      const service = professional.services?.find((s: any) => s.name === appointment.service_name);
+      const instructions = service?.pre_schedule_message || 'Favor seguir as instruções para confirmação.';
+      message = `Olá ${clientName}, estamos pré-agendando seu atendimento de *${serviceName}* para o dia *${dateStr}* às *${timeStr}*. \n\n${instructions}`;
     }
 
-    // Redirect to WhatsApp immediately before async update to avoid popup blocker
     if (clientPhone && message) {
-      const waUrl = `https://wa.me/55${clientPhone}?text=${encodeURIComponent(message)}`;
+      const cleanPhone = clientPhone.startsWith('55') ? clientPhone : `55${clientPhone}`;
+      const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
       window.open(waUrl, '_blank');
     } else if (!clientPhone && action !== 'delete') {
       alert('Atenção: O cliente não possui um número de WhatsApp cadastrado para envio automático.');
     }
 
-    // Update status in database
     const statusMap: any = {
       'confirm': 'confirmed',
       'pre-schedule': 'pre-scheduled',
@@ -293,7 +332,6 @@ const AgendaSection = ({ onBack }: { onBack?: () => void }) => {
     if (newStatus) {
       await supabase.from('appointments').update({ status: newStatus }).eq('id', id);
     }
-
     fetchAppointments();
   };
 
@@ -339,7 +377,7 @@ const AgendaSection = ({ onBack }: { onBack?: () => void }) => {
   );
 };
 
-const HoursSection = ({ onBack }: { onBack?: () => void }) => {
+const HoursSection = ({ professional, onBack }: { professional: any, onBack?: () => void }) => {
   const defaultHours = [
     { day: 1, name: 'Segunda', enabled: true, start: '09:00', end: '18:00', lunchEnabled: true, lunchStart: '12:00', lunchEnd: '13:00' },
     { day: 2, name: 'Terça', enabled: true, start: '09:00', end: '18:00', lunchEnabled: true, lunchStart: '12:00', lunchEnd: '13:00' },
@@ -356,38 +394,17 @@ const HoursSection = ({ onBack }: { onBack?: () => void }) => {
   const [tab, setTab] = React.useState<'WEEK' | 'SPECIAL'>('WEEK');
   const [proId, setProId] = React.useState<string | null>(null);
 
+
   React.useEffect(() => {
-    fetchHours();
-  }, []);
-
-  const fetchHours = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session?.user) {
-        setLoading(false);
-        return;
+    if (professional) {
+      setProId(professional.id);
+      if (professional.working_hours && professional.working_hours.length > 0) {
+        setHours(professional.working_hours);
       }
-
-      const { data: pro } = await supabase
-        .from('professionals')
-        .select('id, working_hours, special_dates')
-        .or(`user_id.eq.${session.user.id},email.eq.${session.user.email}`)
-        .maybeSingle();
-
-      if (pro) {
-        setProId(pro.id);
-        if (pro.working_hours && pro.working_hours.length > 0) {
-          setHours(pro.working_hours);
-        }
-        setSpecialDates(pro.special_dates || []);
-      }
-    } catch (error) {
-      console.error('Erro ao buscar horários:', error);
-    } finally {
+      setSpecialDates(professional.special_dates || []);
       setLoading(false);
     }
-  };
+  }, [professional]);
 
   const handleSaveHours = async () => {
     setLoading(true);
@@ -671,7 +688,7 @@ const HoursSection = ({ onBack }: { onBack?: () => void }) => {
   );
 };
 
-const ServicesSection = ({ onBack }: { onBack?: () => void }) => {
+const ServicesSection = ({ professional, onBack }: { professional: any, onBack?: () => void }) => {
   const [services, setServices] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [showModal, setShowModal] = React.useState(false);
@@ -688,30 +705,20 @@ const ServicesSection = ({ onBack }: { onBack?: () => void }) => {
   });
 
   React.useEffect(() => {
-    fetchServices();
-  }, []);
-
-  const fetchServices = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) return;
-
-      const { data: pro } = await supabase
-        .from('professionals')
-        .select('id, services')
-        .or(`user_id.eq.${session.user.id},email.eq.${session.user.email}`)
-        .single();
-
-      if (pro) {
-        setProId(pro.id);
-        setServices(pro.services || []);
-      }
-    } catch (error) {
-      console.error('Erro ao buscar serviços:', error);
-    } finally {
+    if (professional) {
+      setProId(professional.id);
+      setServices(professional.services || []);
       setLoading(false);
     }
-  };
+  }, [professional]);
+
+  React.useEffect(() => {
+    if (professional) {
+      setProId(professional.id);
+      setServices(professional.services || []);
+      setLoading(false);
+    }
+  }, [professional]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -880,7 +887,7 @@ const ServicesSection = ({ onBack }: { onBack?: () => void }) => {
   );
 };
 
-const SettingsSection = ({ onBack }: { onBack?: () => void }) => {
+const SettingsSection = ({ professional, onBack }: { professional: any, onBack?: () => void }) => {
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [proId, setProId] = React.useState<string | null>(null);
@@ -896,11 +903,22 @@ const SettingsSection = ({ onBack }: { onBack?: () => void }) => {
   const [pushStatus, setPushStatus] = React.useState<'default' | 'granted' | 'denied'>('default');
 
   React.useEffect(() => {
-    fetchProfile();
+    if (professional) {
+      setProId(professional.id);
+      setFormData({
+        name: professional.name || '',
+        specialty: professional.specialty || '',
+        bio: professional.bio || '',
+        whatsapp: professional.whatsapp || '',
+        address: professional.address || '',
+        image_url: professional.image_url || ''
+      });
+      setLoading(false);
+    }
     if ('Notification' in window) {
       setPushStatus(Notification.permission as any);
     }
-  }, []);
+  }, [professional]);
 
   const enablePushNotifications = async () => {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
@@ -942,34 +960,6 @@ const SettingsSection = ({ onBack }: { onBack?: () => void }) => {
     }
   };
 
-  const fetchProfile = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) return;
-
-      const { data: pro } = await supabase
-        .from('professionals')
-        .select('id, name, specialty, bio, whatsapp, address, image_url')
-        .or(`user_id.eq.${session.user.id},email.eq.${session.user.email}`)
-        .maybeSingle();
-
-      if (pro) {
-        setProId(pro.id);
-        setFormData({
-          name: pro.name || '',
-          specialty: pro.specialty || '',
-          bio: pro.bio || '',
-          whatsapp: pro.whatsapp || '',
-          address: pro.address || '',
-          image_url: pro.image_url || ''
-        });
-      }
-    } catch (error) {
-      console.error('Erro ao buscar perfil:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -1177,14 +1167,43 @@ const SettingsSection = ({ onBack }: { onBack?: () => void }) => {
 };
 
 export const ProDashboardView: React.FC<ProDashboardViewProps> = ({ currentSection = 'OVERVIEW', onNavigate }) => {
+  const [professional, setProfessional] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    fetchProfessional();
+  }, []);
+
+  const fetchProfessional = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) {
+      setLoading(false);
+      return;
+    }
+
+    const { data: pro } = await supabase
+      .from('professionals')
+      .select('*')
+      .or(`user_id.eq.${session.user.id},email.eq.${session.user.email}`)
+      .maybeSingle();
+
+    if (pro) {
+      setProfessional(pro);
+    }
+    setLoading(false);
+  };
+
   const goBack = () => onNavigate?.('PRO_DASHBOARD');
+
+  if (loading) return <div className="min-h-screen flex items-center justify-center animate-pulse text-text-secondary">Carregando painel...</div>;
+
   return (
     <div className="max-w-6xl mx-auto px-6 py-12">
-      {currentSection === 'OVERVIEW' && <OverviewSection />}
-      {currentSection === 'AGENDA' && <AgendaSection onBack={goBack} />}
-      {currentSection === 'HOURS' && <HoursSection onBack={goBack} />}
-      {currentSection === 'SERVICES' && <ServicesSection onBack={goBack} />}
-      {currentSection === 'SETTINGS' && <SettingsSection onBack={goBack} />}
+      {currentSection === 'OVERVIEW' && <OverviewSection professional={professional} />}
+      {currentSection === 'AGENDA' && <AgendaSection professional={professional} onBack={goBack} />}
+      {currentSection === 'HOURS' && <HoursSection professional={professional} onBack={goBack} />}
+      {currentSection === 'SERVICES' && <ServicesSection professional={professional} onBack={goBack} />}
+      {currentSection === 'SETTINGS' && <SettingsSection professional={professional} onBack={goBack} />}
     </div>
   );
 };

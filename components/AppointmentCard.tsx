@@ -66,10 +66,12 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({ id, time, date
                     </button>
                 ) : (
                     <>
-                        {status.toLowerCase() === 'pending' && (
+                        {(status.toLowerCase() === 'pending' || status.toLowerCase() === 'pre-scheduled') && (
                             <button onClick={() => onAction?.('confirm')} className="flex-1 sm:flex-none px-3 py-1.5 bg-emerald-500 text-white rounded-lg text-[10px] font-bold hover:bg-emerald-600 transition-colors">Confirmar</button>
                         )}
-                        <button onClick={() => onAction?.('pre-schedule')} className="flex-1 sm:flex-none px-3 py-1.5 bg-blue-500 text-white rounded-lg text-[10px] font-bold hover:bg-blue-600 transition-colors">Pré-Agendar</button>
+                        {status.toLowerCase() === 'pending' && (
+                            <button onClick={() => onAction?.('pre-schedule')} className="flex-1 sm:flex-none px-3 py-1.5 bg-blue-500 text-white rounded-lg text-[10px] font-bold hover:bg-blue-600 transition-colors">Pré-Agendar</button>
+                        )}
                     </>
                 )}
                 {status.toLowerCase() !== 'cancelled' && status.toLowerCase() !== 'completed' && (

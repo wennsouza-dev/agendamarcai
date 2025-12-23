@@ -19,6 +19,7 @@ export const BookingView: React.FC<BookingViewProps> = ({ professional, service,
   const [clientName, setClientName] = useState('');
   const [clientWhatsApp, setClientWhatsApp] = useState('');
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [existingAppointments, setExistingAppointments] = useState<any[]>([]);
 
   React.useEffect(() => {
     const fetchReviews = async () => {
@@ -29,8 +30,27 @@ export const BookingView: React.FC<BookingViewProps> = ({ professional, service,
         .order('created_at', { ascending: false });
       if (data) setReviews(data);
     };
+
+    const fetchExistingAppointments = async () => {
+      const dateStr = selectedDate.toISOString().split('T')[0];
+      const nextDay = new Date(selectedDate);
+      nextDay.setDate(nextDay.getDate() + 1);
+      const nextDayStr = nextDay.toISOString().split('T')[0];
+
+      const { data } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('professional_id', professional.id)
+        .gte('date', dateStr)
+        .lt('date', nextDayStr)
+        .neq('status', 'cancelled');
+
+      if (data) setExistingAppointments(data);
+    };
+
     fetchReviews();
-  }, [professional.id]);
+    fetchExistingAppointments();
+  }, [professional.id, selectedDate]);
 
   const generateTimeSlots = () => {
     // 1. Get Brasilia Time Helper
@@ -65,16 +85,36 @@ export const BookingView: React.FC<BookingViewProps> = ({ professional, service,
 
       if (!isLunch) {
         // 4. Past Time Filtering (Brasilia Sync)
-        if (isSelectedToday) {
+        const isPast = isSelectedToday && (() => {
           const [slotH, slotM] = current.split(':').map(Number);
           const nowH = brNow.getHours();
           const nowM = brNow.getMinutes();
+          return slotH < nowH || (slotH === nowH && slotM <= nowM);
+        })();
 
-          // Only add slot if it's in the future
-          if (slotH > nowH || (slotH === nowH && slotM > nowM)) {
-            slots.push(current);
-          }
-        } else {
+        // 5. Existing Appointment Filtering (Overlap Detection)
+        const isBooked = existingAppointments.some(app => {
+          if (!app.time) return false;
+
+          const getMinutes = (t: string) => {
+            const [h, m] = t.split(':').map(Number);
+            return h * 60 + m;
+          };
+
+          const appStart = getMinutes(app.time);
+          const appService = professional.services?.find((s: any) => s.name === app.service_name);
+          const appDuration = appService?.duration || 30;
+          const appEnd = appStart + appDuration;
+
+          const slotStart = getMinutes(current);
+          const slotDuration = service.duration || 30;
+          const slotEnd = slotStart + slotDuration;
+
+          // Overlap check: (StartA < EndB) && (EndA > StartB)
+          return (slotStart < appEnd) && (slotEnd > appStart);
+        });
+
+        if (!isPast && !isBooked) {
           slots.push(current);
         }
       }
