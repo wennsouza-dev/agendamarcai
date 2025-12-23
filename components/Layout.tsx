@@ -88,13 +88,21 @@ export const Footer: React.FC = () => (
 );
 
 export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, userEmail }) => {
+  const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
   const isDashboard = currentView.startsWith('PRO_') || currentView === 'CLIENT_DASHBOARD' || currentView === 'ADMIN_DASHBOARD';
   const userType = currentView.startsWith('PRO_') || currentView === 'ADMIN_DASHBOARD' ? 'PRO' : 'CLIENT';
 
   if (isDashboard) {
     return (
       <div className="flex min-h-screen bg-gray-50 dark:bg-[#111418]">
-        <Sidebar currentView={currentView} setView={setView} userType={userType} userEmail={userEmail} />
+        <Sidebar
+          currentView={currentView}
+          setView={(v) => { setView(v); setIsSidebarOpen(false); }}
+          userType={userType}
+          userEmail={userEmail}
+          isOpen={isSidebarOpen}
+          onClose={() => setIsSidebarOpen(false)}
+        />
         <div className="flex-1 flex flex-col min-h-screen overflow-x-hidden">
           {/* Dashboard Header - Simplified */}
           <header className="sticky top-0 z-50 flex items-center justify-between border-b border-gray-200 dark:border-[#283039] bg-white/90 dark:bg-[#101922]/90 backdrop-blur-md px-6 py-4 lg:hidden">
@@ -104,7 +112,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, 
               </div>
               <h2 className="text-xl font-bold tracking-tight">MarcAI</h2>
             </div>
-            <button className="p-2 rounded-lg text-text-secondary hover:bg-gray-100 dark:hover:bg-[#283039]">
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="p-2 rounded-lg text-text-secondary hover:bg-gray-100 dark:hover:bg-[#283039]"
+            >
               <span className="material-symbols-outlined">menu</span>
             </button>
           </header>

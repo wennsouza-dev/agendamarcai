@@ -24,6 +24,8 @@ const OverviewSection = () => {
   const [appointments, setAppointments] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [reviews, setReviews] = React.useState<Review[]>([]);
+  const [proId, setProId] = React.useState<string | null>(null);
+  const [isOnline, setIsOnline] = React.useState(true);
   const [stats, setStats] = React.useState({
     totalCompleted: 0,
     completedToday: 0,
@@ -42,6 +44,7 @@ const OverviewSection = () => {
       .maybeSingle();
 
     if (pro) {
+      setProId(pro.id);
       // 1. Fetch Today's Upcoming (not necessarily completed)
       const { data: upcoming } = await supabase
         .from('appointments')
@@ -106,23 +109,43 @@ const OverviewSection = () => {
     fetchOverviewData();
   }, []);
 
+  const copyBookingLink = () => {
+    const url = `${window.location.origin}/?p=${proId}`;
+    navigator.clipboard.writeText(url);
+    alert('Link de agendamento copiado para a área de transferência!');
+  };
+
   return (
-    <div className="flex flex-col gap-10">
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl md:text-4xl font-black tracking-tight">Visão Geral</h1>
-          <p className="text-text-secondary">Bem-vindo de volta! Aqui está sua agenda para hoje.</p>
+          <h1 className="text-3xl lg:text-4xl font-black tracking-tight mb-2">Visão Geral</h1>
+          <p className="text-text-secondary font-medium">Bem-vindo de volta! Aqui está sua agenda para hoje.</p>
         </div>
-        <div className="flex items-center gap-4 bg-white dark:bg-surface-dark p-2 rounded-xl border border-gray-100 dark:border-gray-800">
-          <div className="flex flex-col">
-            <span className="text-[10px] uppercase font-bold text-text-secondary px-2">Disponibilidade</span>
-            <span className="text-xs font-bold text-emerald-500 px-2">Status: Online</span>
-          </div>
-          <div className="w-10 h-6 bg-emerald-500 rounded-full flex items-center justify-end px-1">
-            <div className="size-4 bg-white rounded-full"></div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={copyBookingLink}
+            className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-xl font-bold text-sm hover:bg-primary/20 transition-all border border-primary/20"
+          >
+            <span className="material-symbols-outlined text-sm">link</span>
+            Copiar Link de Agendamento
+          </button>
+          <div className="bg-white dark:bg-surface-dark p-3 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm flex items-center gap-4">
+            <div className="flex flex-col">
+              <span className="text-[10px] font-black text-text-secondary uppercase tracking-widest">Disponibilidade</span>
+              <span className={`text-xs font-bold ${isOnline ? 'text-emerald-500' : 'text-red-500'}`}>
+                Status: {isOnline ? 'Online' : 'Offline'}
+              </span>
+            </div>
+            <button
+              onClick={() => setIsOnline(!isOnline)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${isOnline ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-700'}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isOnline ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
           </div>
         </div>
-      </header>
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard icon="bar_chart" title="Atendimentos Total" value={stats.totalCompleted.toString()} />
@@ -870,9 +893,54 @@ const SettingsSection = ({ onBack }: { onBack?: () => void }) => {
     image_url: ''
   });
 
+  const [pushStatus, setPushStatus] = React.useState<'default' | 'granted' | 'denied'>('default');
+
   React.useEffect(() => {
     fetchProfile();
+    if ('Notification' in window) {
+      setPushStatus(Notification.permission as any);
+    }
   }, []);
+
+  const enablePushNotifications = async () => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      alert('Seu navegador não suporta notificações push.');
+      return;
+    }
+
+    try {
+      const permission = await Notification.requestPermission();
+      setPushStatus(permission);
+
+      if (permission === 'granted') {
+        const registration = await navigator.serviceWorker.ready;
+
+        // VAPID Public Key (Placeholder - in real apps this comes from env)
+        const vapidPublicKey = 'BIX-9z8v4S7V-G_z9Yd9ZgR0Vl8g_X-Yp0X_U-Xf-Xf-Xf-Xf-Xf-Xf-Xf-Xf-Xf-Xf-Xf-Xf-Xf-Xf';
+
+        const subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: vapidPublicKey
+        });
+
+        // Save to Supabase
+        if (proId) {
+          const { error } = await supabase
+            .from('push_subscriptions')
+            .upsert({
+              professional_id: proId,
+              subscription: subscription.toJSON()
+            });
+
+          if (error) throw error;
+          alert('Notificações ativadas com sucesso!');
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao ativar notificações:', error);
+      alert('Não foi possível ativar as notificações.');
+    }
+  };
 
   const fetchProfile = async () => {
     try {
@@ -992,7 +1060,22 @@ const SettingsSection = ({ onBack }: { onBack?: () => void }) => {
         <h1 className="text-3xl font-black tracking-tight">Configurações</h1>
       </div>
       <div className="bg-white dark:bg-surface-dark p-6 rounded-2xl border border-gray-100 dark:border-gray-800 max-w-2xl shadow-sm">
-        <h2 className="text-xl font-bold mb-6">Perfil Profissional</h2>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-bold">Perfil Profissional</h2>
+          {proId && (
+            <button
+              onClick={() => {
+                const url = `${window.location.origin}/?p=${proId}`;
+                navigator.clipboard.writeText(url);
+                alert('Link copiado!');
+              }}
+              className="px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-text-secondary rounded-lg text-xs font-bold hover:text-primary transition-colors flex items-center gap-1"
+            >
+              <span className="material-symbols-outlined text-sm">content_copy</span>
+              Link de Agendamento
+            </button>
+          )}
+        </div>
         <div className="space-y-4">
           <div className="flex gap-4 items-center">
             <div className="size-20 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center border border-gray-200 dark:border-gray-700 overflow-hidden relative group">

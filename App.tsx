@@ -35,13 +35,38 @@ const App: React.FC = () => {
       setSession(session);
     });
 
-    // Handle Review Link
-    const params = new URLSearchParams(window.location.search);
-    const viewParam = params.get('view');
-    const idParam = params.get('id');
-    if (viewParam === 'review' && idParam) {
-      setView('CLIENT_REVIEW');
-    }
+    // Handle Specialized Links
+    const handleDeepLinks = async () => {
+      const params = new URLSearchParams(window.location.search);
+
+      // 1. Review Link
+      const viewParam = params.get('view');
+      const idParam = params.get('id');
+      if (viewParam === 'review' && idParam) {
+        setView('CLIENT_REVIEW');
+        return;
+      }
+
+      // 2. Professional Direct Link (?p=UUID)
+      const proId = params.get('p');
+      if (proId) {
+        setLoading(true);
+        const { data: pro } = await supabase
+          .from('professionals')
+          .select('*')
+          .eq('id', proId)
+          .single();
+
+        if (pro) {
+          const firstService = pro.services?.[0] || { id: 'default', name: 'Consulta', price: 0, duration: 30 };
+          setBookingContext({ professional: pro, service: firstService });
+          setView('CLIENT_BOOKING');
+        }
+        setLoading(false);
+      }
+    };
+
+    handleDeepLinks();
 
     return () => subscription.unsubscribe();
   }, []);
