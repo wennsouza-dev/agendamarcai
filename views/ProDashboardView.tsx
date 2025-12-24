@@ -57,7 +57,8 @@ const OverviewSection = ({ professional }: { professional: any }) => {
       const completed = allApps.filter(a => a.status === 'completed');
 
       const brNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
-      const todayStr = brNow.toISOString().split('T')[0];
+      // Format today's date as YYYY-MM-DD in local timezone
+      const todayStr = `${brNow.getFullYear()}-${String(brNow.getMonth() + 1).padStart(2, '0')}-${String(brNow.getDate()).padStart(2, '0')}`;
 
       const completedToday = completed.filter(a => a.date?.startsWith(todayStr)).length;
 
@@ -65,8 +66,10 @@ const OverviewSection = ({ professional }: { professional: any }) => {
       const currentYear = brNow.getFullYear();
 
       const monthlyCompleted = completed.filter(a => {
-        const d = new Date(a.date);
-        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+        // Parse YYYY-MM-DD as local date
+        if (!a.date) return false;
+        const [year, month] = a.date.split('-').map(Number);
+        return (month - 1) === currentMonth && year === currentYear;
       });
 
       // Sum prices from pro.services based on service_name
@@ -252,6 +255,17 @@ const AgendaSection = ({ professional, onBack }: { professional: any, onBack?: (
   const [reviews, setReviews] = React.useState<Review[]>([]);
   const [loading, setLoading] = React.useState(true);
 
+  // Filter states
+  const formatLocalDate = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const [filterDate, setFilterDate] = React.useState<string>(formatLocalDate(new Date()));
+  const [filterStatus, setFilterStatus] = React.useState<string>('all');
+
   React.useEffect(() => {
     fetchAppointments();
   }, [professional]);
@@ -263,7 +277,8 @@ const AgendaSection = ({ professional, onBack }: { professional: any, onBack?: (
       .from('appointments')
       .select('*')
       .eq('professional_id', professional.id)
-      .order('date', { ascending: false });
+      .order('date', { ascending: true })
+      .order('time', { ascending: true });
 
     if (data) setAppointments(data);
 
@@ -276,6 +291,19 @@ const AgendaSection = ({ professional, onBack }: { professional: any, onBack?: (
     if (revData) setReviews(revData);
     setLoading(false);
   };
+
+  // Filter appointments based on date and status
+  const filteredAppointments = React.useMemo(() => {
+    return appointments.filter(app => {
+      // Date filter
+      const matchesDate = filterDate === '' || app.date === filterDate;
+
+      // Status filter
+      const matchesStatus = filterStatus === 'all' || app.status === filterStatus;
+
+      return matchesDate && matchesStatus;
+    });
+  }, [appointments, filterDate, filterStatus]);
 
   const handleAction = async (id: string, action: string) => {
     const appointment = appointments.find(a => a.id === id);
@@ -335,6 +363,19 @@ const AgendaSection = ({ professional, onBack }: { professional: any, onBack?: (
     fetchAppointments();
   };
 
+  // Quick date buttons
+  const getQuickDates = () => {
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    return [
+      { label: 'Hoje', value: formatLocalDate(today) },
+      { label: 'Amanhã', value: formatLocalDate(tomorrow) },
+      { label: 'Todos', value: '' }
+    ];
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -347,13 +388,88 @@ const AgendaSection = ({ professional, onBack }: { professional: any, onBack?: (
         </button>
       </div>
 
+      {/* Filters Section */}
+      <div className="bg-white dark:bg-surface-dark p-4 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
+        <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
+          {/* Date Filter */}
+          <div className="flex-1 w-full md:w-auto">
+            <label className="block text-[10px] font-black text-text-secondary uppercase tracking-widest mb-2">Filtrar por Data</label>
+            <div className="flex flex-wrap gap-2">
+              {getQuickDates().map(({ label, value }) => (
+                <button
+                  key={label}
+                  onClick={() => setFilterDate(value)}
+                  className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${filterDate === value
+                      ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                      : 'bg-gray-100 dark:bg-gray-800 text-text-secondary hover:bg-gray-200 dark:hover:bg-gray-700'
+                    }`}
+                >
+                  {label}
+                </button>
+              ))}
+              <input
+                type="date"
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                className="px-3 py-2 rounded-xl text-sm font-bold bg-gray-100 dark:bg-gray-800 border-none outline-none focus:ring-2 ring-primary/20 transition-all cursor-pointer"
+              />
+            </div>
+          </div>
+
+          {/* Status Filter */}
+          <div className="w-full md:w-auto">
+            <label className="block text-[10px] font-black text-text-secondary uppercase tracking-widest mb-2">Filtrar por Status</label>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { label: 'Todos', value: 'all', color: 'bg-gray-100 dark:bg-gray-800 text-text-secondary' },
+                { label: 'Pendente', value: 'pending', color: 'bg-yellow-100 text-yellow-600' },
+                { label: 'Pré-Agendado', value: 'pre-scheduled', color: 'bg-blue-100 text-blue-600' },
+                { label: 'Confirmado', value: 'confirmed', color: 'bg-emerald-100 text-emerald-600' },
+                { label: 'Finalizado', value: 'completed', color: 'bg-purple-100 text-purple-600' },
+                { label: 'Cancelado', value: 'cancelled', color: 'bg-red-100 text-red-600' }
+              ].map(({ label, value, color }) => (
+                <button
+                  key={value}
+                  onClick={() => setFilterStatus(value)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${filterStatus === value
+                      ? `${color} ring-2 ring-offset-2 ring-current`
+                      : `${color} opacity-60 hover:opacity-100`
+                    }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Results count */}
+        <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
+          <p className="text-sm text-text-secondary">
+            <span className="font-bold text-primary">{filteredAppointments.length}</span> agendamento(s) encontrado(s)
+          </p>
+          {(filterDate !== '' || filterStatus !== 'all') && (
+            <button
+              onClick={() => {
+                setFilterDate('');
+                setFilterStatus('all');
+              }}
+              className="text-xs text-primary font-bold hover:underline flex items-center gap-1"
+            >
+              <span className="material-symbols-outlined text-xs">clear</span>
+              Limpar Filtros
+            </button>
+          )}
+        </div>
+      </div>
+
       <ReviewCarousel reviews={reviews} />
 
       <div className="space-y-4">
         {loading ? (
           <div className="text-center py-10 animate-pulse text-text-secondary">Carregando seus agendamentos...</div>
-        ) : appointments.length > 0 ? (
-          appointments.map((app) => (
+        ) : filteredAppointments.length > 0 ? (
+          filteredAppointments.map((app) => (
             <AppointmentCard
               key={app.id}
               id={app.id}
@@ -369,13 +485,18 @@ const AgendaSection = ({ professional, onBack }: { professional: any, onBack?: (
         ) : (
           <div className="bg-white dark:bg-surface-dark p-12 rounded-2xl border border-gray-100 dark:border-gray-800 text-center">
             <span className="material-symbols-outlined text-4xl text-text-secondary mb-4">calendar_month_off</span>
-            <p className="text-lg font-medium text-text-secondary">Nenhum agendamento encontrado.</p>
+            <p className="text-lg font-medium text-text-secondary">
+              {filterDate || filterStatus !== 'all'
+                ? 'Nenhum agendamento encontrado com esses filtros.'
+                : 'Nenhum agendamento encontrado.'}
+            </p>
           </div>
         )}
       </div>
     </div>
   );
 };
+
 
 const HoursSection = ({ professional, onBack }: { professional: any, onBack?: () => void }) => {
   const defaultHours = [
@@ -688,7 +809,7 @@ const HoursSection = ({ professional, onBack }: { professional: any, onBack?: ()
   );
 };
 
-const ServicesSection = ({ professional, onBack }: { professional: any, onBack?: () => void }) => {
+const ServicesSection = ({ professional, onBack, onRefresh }: { professional: any, onBack?: () => void, onRefresh?: () => void }) => {
   const [services, setServices] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [showModal, setShowModal] = React.useState(false);
@@ -703,14 +824,6 @@ const ServicesSection = ({ professional, onBack }: { professional: any, onBack?:
     pre_schedule_enabled: false,
     pre_schedule_message: ''
   });
-
-  React.useEffect(() => {
-    if (professional) {
-      setProId(professional.id);
-      setServices(professional.services || []);
-      setLoading(false);
-    }
-  }, [professional]);
 
   React.useEffect(() => {
     if (professional) {
@@ -753,6 +866,8 @@ const ServicesSection = ({ professional, onBack }: { professional: any, onBack?:
         pre_schedule_message: ''
       });
       setEditingService(null);
+      // Refresh parent professional data to sync state
+      onRefresh?.();
     }
   };
 
@@ -761,7 +876,10 @@ const ServicesSection = ({ professional, onBack }: { professional: any, onBack?:
     if (!proId) return;
     const updatedServices = services.filter(s => s.id !== serviceId);
     const { error } = await supabase.from('professionals').update({ services: updatedServices }).eq('id', proId);
-    if (!error) setServices(updatedServices);
+    if (!error) {
+      setServices(updatedServices);
+      onRefresh?.();
+    }
   };
 
   const openModal = (service?: any) => {
@@ -1202,7 +1320,7 @@ export const ProDashboardView: React.FC<ProDashboardViewProps> = ({ currentSecti
       {currentSection === 'OVERVIEW' && <OverviewSection professional={professional} />}
       {currentSection === 'AGENDA' && <AgendaSection professional={professional} onBack={goBack} />}
       {currentSection === 'HOURS' && <HoursSection professional={professional} onBack={goBack} />}
-      {currentSection === 'SERVICES' && <ServicesSection professional={professional} onBack={goBack} />}
+      {currentSection === 'SERVICES' && <ServicesSection professional={professional} onBack={goBack} onRefresh={fetchProfessional} />}
       {currentSection === 'SETTINGS' && <SettingsSection professional={professional} onBack={goBack} />}
     </div>
   );

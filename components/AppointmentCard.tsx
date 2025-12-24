@@ -38,7 +38,12 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({ id, time, date
         <div className="bg-white dark:bg-surface-dark p-4 rounded-xl border border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row items-start sm:items-center gap-4 hover:shadow-md transition-all">
             <div className="size-16 rounded-xl bg-gray-50 dark:bg-[#111418] flex flex-col items-center justify-center shrink-0 border border-gray-100 dark:border-gray-800 self-center sm:self-auto">
                 <span className="text-sm font-black">{time}</span>
-                <span className="text-[10px] font-bold text-text-secondary">{date ? new Date(date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) : 'Hoje'}</span>
+                <span className="text-[10px] font-bold text-text-secondary">{date ? (() => {
+                    // Parse YYYY-MM-DD as local date (not UTC)
+                    const [year, month, day] = date.split('-').map(Number);
+                    const localDate = new Date(year, month - 1, day);
+                    return localDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+                })() : 'Hoje'}</span>
             </div>
             <div className="flex-1 w-full sm:w-auto">
                 <div className="flex items-center gap-2 mb-1">

@@ -14,6 +14,14 @@ interface BookingViewProps {
 }
 
 export const BookingView: React.FC<BookingViewProps> = ({ professional, service, onConfirm, onBack, onServiceChange }) => {
+  // Helper to format date in local timezone (YYYY-MM-DD)
+  const formatLocalDate = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedTime, setSelectedTime] = useState<string>('');
   const [clientName, setClientName] = useState('');
@@ -32,10 +40,10 @@ export const BookingView: React.FC<BookingViewProps> = ({ professional, service,
     };
 
     const fetchExistingAppointments = async () => {
-      const dateStr = selectedDate.toISOString().split('T')[0];
+      const dateStr = formatLocalDate(selectedDate);
       const nextDay = new Date(selectedDate);
       nextDay.setDate(nextDay.getDate() + 1);
-      const nextDayStr = nextDay.toISOString().split('T')[0];
+      const nextDayStr = formatLocalDate(nextDay);
 
       const { data } = await supabase
         .from('appointments')
@@ -60,11 +68,11 @@ export const BookingView: React.FC<BookingViewProps> = ({ professional, service,
     };
 
     const brNow = getBrasiliaTime();
-    const todayStr = brNow.toISOString().split('T')[0];
-    const isSelectedToday = selectedDate.toISOString().split('T')[0] === todayStr;
+    const todayStr = formatLocalDate(brNow);
+    const isSelectedToday = formatLocalDate(selectedDate) === todayStr;
 
     // 2. Check for Special Dates (Fechado/Custom)
-    const specialDate = professional.special_dates?.find(sd => sd?.date === selectedDate.toISOString().split('T')[0]);
+    const specialDate = professional.special_dates?.find(sd => sd?.date === formatLocalDate(selectedDate));
     if (specialDate?.isClosed) return [];
 
     // 3. Get Base Schedule
@@ -168,7 +176,7 @@ export const BookingView: React.FC<BookingViewProps> = ({ professional, service,
               {Array.from({ length: 14 }).map((_, i) => {
                 const date = new Date();
                 date.setDate(date.getDate() + i);
-                const dateStr = date.toISOString().split('T')[0];
+                const dateStr = formatLocalDate(date);
                 const isSelected = selectedDate.toDateString() === date.toDateString();
                 const isToday = new Date().toDateString() === date.toDateString();
 
@@ -374,10 +382,10 @@ export const BookingView: React.FC<BookingViewProps> = ({ professional, service,
                 if (phone) {
                   const url = `https://wa.me/55${phone}?text=${encodeURIComponent(message)}`;
                   window.open(url, '_blank');
-                  onConfirm(selectedDate.toISOString().split('T')[0], selectedTime, clientName, clientWhatsApp);
+                  onConfirm(formatLocalDate(selectedDate), selectedTime, clientName, clientWhatsApp);
                 } else {
                   alert('O profissional não cadastrou o número de WhatsApp.');
-                  onConfirm(selectedDate.toISOString().split('T')[0], selectedTime, clientName, clientWhatsApp);
+                  onConfirm(formatLocalDate(selectedDate), selectedTime, clientName, clientWhatsApp);
                 }
               }}
               className="w-full py-4 bg-primary text-white font-bold rounded-xl shadow-xl shadow-primary/20 hover:bg-primary-hover hover:scale-[1.02] disabled:opacity-50 disabled:scale-100 transition-all flex items-center justify-center gap-2"
