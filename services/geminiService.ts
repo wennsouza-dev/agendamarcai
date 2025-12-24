@@ -1,9 +1,14 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
+const ai = apiKey ? new GoogleGenAI(apiKey) : null;
 
 export const getSmartSuggestions = async (userPrompt: string) => {
+  if (!ai) {
+    console.warn("Gemini AI not initialized (missing API Key)");
+    return ["Cabelo", "Barba", "Manicure"];
+  }
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
@@ -30,6 +35,7 @@ export const getSmartSuggestions = async (userPrompt: string) => {
 };
 
 export const getSmartSummary = async (appointmentDetails: string) => {
+  if (!ai) return "Seu agendamento está confirmado!";
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
