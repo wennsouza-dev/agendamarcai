@@ -2,11 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { MOCK_PROFESSIONALS } from '../constants';
 import { getSmartSuggestions } from '../services/geminiService';
-
-interface SearchViewProps {
-  onSelectProfessional: (pro: any, service: any) => void;
-}
-
 import { supabase } from '../services/supabase';
 
 interface SearchViewProps {
