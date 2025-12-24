@@ -1,4 +1,4 @@
-const CACHE_NAME = 'marcai-cache-v2';
+const CACHE_NAME = 'marcai-cache-v3';
 
 // Only cache specific static assets, not dynamic content
 const urlsToCache = [

@@ -1,0 +1,32 @@
+{
+    "headers": [
+        {
+            "source": "/sw.js",
+            "headers": [
+                {
+                    "key": "Cache-Control",
+                    "value": "no-cache, no-store, must-revalidate"
+                },
+                {
+                    "key": "Service-Worker-Allowed",
+                    "value": "/"
+                }
+            ]
+        },
+        {
+            "source": "/(.*)",
+            "headers": [
+                {
+                    "key": "Clear-Site-Data",
+                    "value": "\"cache\", \"storage\""
+                }
+            ]
+        }
+    ],
+    "rewrites": [
+        {
+            "source": "/((?!assets|icons|manifest.json|sw.js|vite.svg).*)",
+            "destination": "/index.html"
+        }
+    ]
+}
