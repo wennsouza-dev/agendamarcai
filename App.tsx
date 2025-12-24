@@ -27,7 +27,14 @@ const App: React.FC = () => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
+    }).catch(() => {
+      setLoading(false);
     });
+
+    // Safety timeout - if session fetch takes too long, just stop loading
+    const safetyTimeout = setTimeout(() => {
+      setLoading(false);
+    }, 5000);
 
     const {
       data: { subscription },
@@ -68,7 +75,10 @@ const App: React.FC = () => {
 
     handleDeepLinks();
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(safetyTimeout);
+    };
   }, []);
 
   const navigateTo = useCallback((nextView: ViewState) => {
@@ -124,7 +134,12 @@ const App: React.FC = () => {
   }, [bookingContext, navigateTo]);
 
   const renderView = () => {
-    if (loading) return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
+    if (loading) return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background-light dark:bg-background-dark text-slate-900 dark:text-white">
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent mb-4"></div>
+        <p className="font-bold text-lg animate-pulse">Iniciando o MarcAI...</p>
+      </div>
+    );
 
     switch (view) {
       case 'LANDING':

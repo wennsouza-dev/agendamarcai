@@ -64,7 +64,7 @@ export const BookingView: React.FC<BookingViewProps> = ({ professional, service,
     const isSelectedToday = selectedDate.toISOString().split('T')[0] === todayStr;
 
     // 2. Check for Special Dates (Fechado/Custom)
-    const specialDate = professional.special_dates?.find(sd => sd.date === selectedDate.toISOString().split('T')[0]);
+    const specialDate = professional.special_dates?.find(sd => sd?.date === selectedDate.toISOString().split('T')[0]);
     if (specialDate?.isClosed) return [];
 
     // 3. Get Base Schedule
@@ -97,8 +97,9 @@ export const BookingView: React.FC<BookingViewProps> = ({ professional, service,
           if (!app.time) return false;
 
           const getMinutes = (t: string) => {
+            if (!t || typeof t !== 'string' || !t.includes(':')) return 0;
             const [h, m] = t.split(':').map(Number);
-            return h * 60 + m;
+            return (h || 0) * 60 + (m || 0);
           };
 
           const appStart = getMinutes(app.time);
@@ -121,11 +122,11 @@ export const BookingView: React.FC<BookingViewProps> = ({ professional, service,
 
       // Increment by service duration or 30min default
       const [h, m] = current.split(':').map(Number);
-      const duration = service.duration || 30;
-      let totalMins = h * 60 + m + duration;
+      const duration = Number(service.duration) || 30;
+      let totalMins = (h || 0) * 60 + (m || 0) + duration;
       const nextH = Math.floor(totalMins / 60);
       const nextM = totalMins % 60;
-      current = `${String(nextH).padStart(2, '0')}:${String(nextM).padStart(2, '0')}`;
+      current = `${String(nextH % 24).padStart(2, '0')}:${String(nextM).padStart(2, '0')}`;
     }
 
     return slots;
