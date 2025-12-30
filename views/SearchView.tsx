@@ -25,7 +25,9 @@ export const SearchView: React.FC<SearchViewProps> = ({ onSelectProfessional }) 
     const { data } = await supabase
       .from('professionals')
       .select('*, reviews(rating)')
-      .neq('expire_days', 0);
+
+      // Only show valid professionals (expiration_date >= today)
+      .gte('expiration_date', new Date().toISOString().split('T')[0]);
 
     if (data) {
       const processed = data.map(pro => {

@@ -10,6 +10,10 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ userEmai
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [editingPro, setEditingPro] = useState<any>(null);
+    const [stats, setStats] = useState({
+        totalAppointments: 0,
+        totalReviews: 0,
+    });
 
     // Form State
     const [formData, setFormData] = useState({
@@ -31,6 +35,16 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ userEmai
 
         if (data) setProfessionals(data);
         if (error) console.error('Error fetching pros:', error);
+
+        // Fetch Global Stats
+        const { count: appointmentsCount } = await supabase.from('appointments').select('*', { count: 'exact', head: true });
+        const { count: reviewsCount } = await supabase.from('reviews').select('*', { count: 'exact', head: true });
+
+        setStats({
+            totalAppointments: appointmentsCount || 0,
+            totalReviews: reviewsCount || 0,
+        });
+
         setLoading(false);
     };
 
@@ -48,7 +62,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ userEmai
                 location: pro.city || '',
                 salon_name: pro.salon_name || '',
                 reset_word: pro.reset_word || '',
-                expire_days: pro.expire_days || 0
+                expire_days: pro.expiration_date ? Math.ceil((new Date(pro.expiration_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 30
             });
         } else {
             setEditingPro(null);
@@ -90,7 +104,12 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ userEmai
             city: location,
             salon_name,
             reset_word,
-            expire_days: parseInt(expire_days as any),
+            // Calculate expiration date in YYYY-MM-DD
+            expiration_date: (() => {
+                const d = new Date();
+                d.setDate(d.getDate() + parseInt(expire_days as any));
+                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            })(),
         };
 
         let result;
@@ -112,8 +131,18 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ userEmai
         }
     };
 
-    const getStatus = (days: number) => {
-        if (days > 0) return <span className="px-2 py-1 rounded bg-green-100 text-green-700 text-xs font-bold">ATIVO</span>;
+    const getDaysRemaining = (dateStr: string) => {
+        if (!dateStr) return 0;
+        const today = new Date();
+        const exp = new Date(dateStr + 'T00:00:00'); // Valid until start of that day? Or end? Plan said "validade". Let's assume inclusive.
+        // Actually, let's keep it simple: just diff days
+        const diffTime = new Date(dateStr).getTime() - new Date().getTime();
+        return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    };
+
+    const getStatus = (dateStr: string) => {
+        const days = getDaysRemaining(dateStr);
+        if (days >= 0) return <span className="px-2 py-1 rounded bg-green-100 text-green-700 text-xs font-bold">ATIVO</span>;
         return <span className="px-2 py-1 rounded bg-red-100 text-red-700 text-xs font-bold">EXPIRADO</span>;
     };
 
@@ -121,11 +150,12 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ userEmai
         <div className="max-w-6xl mx-auto px-6 py-12 flex flex-col gap-10">
             <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
                 <div>
-                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-bold uppercase tracking-wider mb-2">
-                        Admin
+                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 text-primary rounded-full text-xs font-black uppercase tracking-wider mb-2 border border-primary/20">
+                        <span className="material-symbols-outlined text-xs">terminal</span>
+                        Modo Desenvolvedor
                     </div>
                     <h1 className="text-3xl md:text-4xl font-black tracking-tight">Painel Administrativo</h1>
-                    <p className="text-text-secondary">Gerencie os profissionais da plataforma.</p>
+                    <p className="text-text-secondary">Controle total da plataforma MarcAI.</p>
                 </div>
                 <button
                     onClick={() => openModal()}
@@ -135,6 +165,43 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ userEmai
                     Cadastrar Profissional
                 </button>
             </header>
+
+            {/* Global Stats Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="bg-white dark:bg-surface-dark p-6 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
+                    <div className="flex items-center gap-4">
+                        <div className="size-12 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center">
+                            <span className="material-symbols-outlined">groups</span>
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-black text-text-secondary uppercase tracking-widest">Total Profissionais</p>
+                            <p className="text-2xl font-black">{professionals.length}</p>
+                        </div>
+                    </div>
+                </div>
+                <div className="bg-white dark:bg-surface-dark p-6 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
+                    <div className="flex items-center gap-4">
+                        <div className="size-12 rounded-xl bg-emerald-50 text-emerald-500 flex items-center justify-center">
+                            <span className="material-symbols-outlined">event_available</span>
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-black text-text-secondary uppercase tracking-widest">Agendamentos Totais</p>
+                            <p className="text-2xl font-black">{stats.totalAppointments}</p>
+                        </div>
+                    </div>
+                </div>
+                <div className="bg-white dark:bg-surface-dark p-6 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
+                    <div className="flex items-center gap-4">
+                        <div className="size-12 rounded-xl bg-purple-50 text-purple-500 flex items-center justify-center">
+                            <span className="material-symbols-outlined">star</span>
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-black text-text-secondary uppercase tracking-widest">Avaliações Recebidas</p>
+                            <p className="text-2xl font-black">{stats.totalReviews}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <div className="bg-white dark:bg-surface-dark border border-gray-100 dark:border-gray-800 rounded-2xl shadow-sm overflow-hidden">
                 <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
@@ -160,14 +227,17 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ userEmai
                             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                                 {professionals.map(pro => (
                                     <tr key={pro.id} className="hover:bg-gray-50 dark:hover:bg-[#111418] transition-colors">
-                                        <td className="px-6 py-4">{getStatus(pro.expire_days)}</td>
+                                        <td className="px-6 py-4">{getStatus(pro.expiration_date)}</td>
                                         <td className="px-6 py-4 font-bold">
                                             {pro.name}
                                             <div className="text-xs text-text-secondary font-normal">{pro.email}</div>
                                         </td>
                                         <td className="px-6 py-4 text-text-secondary">{pro.category || '-'}</td>
                                         <td className="px-6 py-4 text-text-secondary">{pro.salon_name || '-'}</td>
-                                        <td className="px-6 py-4 text-text-secondary font-mono">{pro.expire_days} dias</td>
+                                        <td className="px-6 py-4 text-text-secondary font-mono">
+                                            {getDaysRemaining(pro.expiration_date)} dias
+                                            <div className="text-[10px] text-gray-400">{pro.expiration_date ? new Date(pro.expiration_date).toLocaleDateString() : '-'}</div>
+                                        </td>
                                         <td className="px-6 py-4 text-right">
                                             <div className="flex justify-end gap-2">
                                                 <button onClick={() => openModal(pro)} className="text-primary font-bold hover:underline">Editar</button>

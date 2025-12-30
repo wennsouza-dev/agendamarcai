@@ -147,28 +147,67 @@ const App: React.FC = () => {
       case 'AUTH':
         return <AuthView onSuccess={async () => {
           const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user?.email === 'wennsouza@gmail.com') {
+          const userEmail = session?.user?.email;
+
+          // 1. Acesso Admin (Hardcoded)
+          if (userEmail === 'wennsouza@gmail.com') {
             navigateTo('ADMIN_DASHBOARD');
             return;
           }
 
-          const { data: pro } = await supabase
+          // 2. Tenta encontrar profissional já vinculado (pelo ID)
+          let { data: pro, error } = await supabase
             .from('professionals')
             .select('*')
             .eq('user_id', session?.user?.id)
-            .or(`email.eq.${session?.user?.email}`)
             .maybeSingle();
 
+          // 3. Se não achou pelo ID, tenta encontrar pelo Email (pré-cadastro do Admin)
+          if (!pro) {
+            const { data: proByEmail } = await supabase
+              .from('professionals')
+              .select('*')
+              .eq('email', userEmail)
+              .maybeSingle();
+
+            if (proByEmail) {
+              // Encontrou! Vincula o user_id agora
+              const { error: updateError } = await supabase
+                .from('professionals')
+                .update({ user_id: session?.user?.id })
+                .eq('id', proByEmail.id);
+
+              if (!updateError) {
+                pro = proByEmail; // Agora está logado e vinculado
+              }
+            }
+          }
+
+          // 4. Decisão de Acesso
           if (pro) {
-            if (pro.expire_days === 0) {
-              alert('Sua assinatura expirou. Entre em contato com o administrador.');
+            // Check expiration
+            const todayBr = new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' });
+            const today = new Date(todayBr);
+            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+            // If expiration_date is smaller than today, it is expired.
+            // (expiration_date is the LAST valid day)
+            const isExpired = pro.expiration_date && pro.expiration_date < todayStr;
+
+            if (isExpired) {
+              const dateParts = pro.expiration_date.split('-');
+              const fmtDate = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
+              alert(`Sua assinatura expirou em ${fmtDate}. Entre em contato com o administrador.`);
               await supabase.auth.signOut();
               setView('AUTH');
             } else {
               navigateTo('PRO_DASHBOARD');
             }
           } else {
-            navigateTo('PRO_DASHBOARD');
+            // Conta não existe na tabela professionals (não aprovada)
+            alert('Seu cadastro foi realizado, mas aguarda aprovação do administrador. Entre em contato para liberar seu acesso.');
+            await supabase.auth.signOut();
+            setView('AUTH');
           }
         }} />;
       case 'ADMIN_DASHBOARD':
