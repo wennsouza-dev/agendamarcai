@@ -50,7 +50,28 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ userEmai
 
     useEffect(() => {
         fetchProfessionals();
+        fetchSettings();
     }, []);
+
+    const [devWhatsapp, setDevWhatsapp] = useState('');
+
+    const fetchSettings = async () => {
+        const { data } = await supabase
+            .from('platform_settings')
+            .select('value')
+            .eq('key', 'developer_whatsapp')
+            .maybeSingle();
+        if (data) setDevWhatsapp(data.value);
+    };
+
+    const saveSettings = async () => {
+        const { error } = await supabase
+            .from('platform_settings')
+            .upsert({ key: 'developer_whatsapp', value: devWhatsapp });
+
+        if (error) alert('Erro ao salvar configuração: ' + error.message);
+        else alert('Configuração salva com sucesso!');
+    };
 
     const openModal = (pro?: any) => {
         if (pro) {
@@ -155,7 +176,27 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ userEmai
                         Modo Desenvolvedor
                     </div>
                     <h1 className="text-3xl md:text-4xl font-black tracking-tight">Painel Administrativo</h1>
-                    <p className="text-text-secondary">Controle total da plataforma MarcAI.</p>
+                    <p className="text-text-secondary">Contrate a MarcAI Agenda para seu negócio.</p>
+                </div>
+                <div className="flex gap-2">
+                    <div className="flex bg-white dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-primary/50 transition-all">
+                        <div className="bg-gray-50 dark:bg-gray-800 px-3 flex items-center justify-center border-r border-gray-200 dark:border-gray-700">
+                            <span className="material-symbols-outlined text-green-500">chat</span>
+                        </div>
+                        <input
+                            type="text"
+                            placeholder="WhatsApp do Dev (Ex: 5531999999999)"
+                            className="bg-transparent border-none text-sm w-64 focus:ring-0"
+                            value={devWhatsapp}
+                            onChange={e => setDevWhatsapp(e.target.value)}
+                        />
+                        <button
+                            onClick={saveSettings}
+                            className="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-3 text-xs font-bold uppercase tracking-wider transition-colors border-l border-gray-200 dark:border-gray-700"
+                        >
+                            Salvar
+                        </button>
+                    </div>
                 </div>
                 <button
                     onClick={() => openModal()}

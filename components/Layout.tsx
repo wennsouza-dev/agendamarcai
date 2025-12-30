@@ -87,6 +87,8 @@ export const Footer: React.FC = () => (
   </footer>
 );
 
+import { DeveloperFloatingButton } from './DeveloperFloatingButton';
+
 export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, userEmail }) => {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
   const isDashboard = currentView.startsWith('PRO_') || currentView === 'CLIENT_DASHBOARD' || currentView === 'ADMIN_DASHBOARD';
@@ -124,6 +126,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, 
             {children}
           </main>
         </div>
+        <DeveloperFloatingButton />
       </div>
     );
   }
@@ -135,6 +138,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, 
         {children}
       </main>
       <Footer />
+      <DeveloperFloatingButton />
     </div>
   );
 };
