@@ -22,6 +22,13 @@ export interface Service {
   pre_schedule_message?: string;
 }
 
+export interface GalleryImage {
+  id: string;
+  professional_id: string;
+  image_url: string;
+  created_at: string;
+}
+
 export interface Professional {
   id: string;
   name: string;
@@ -37,6 +44,8 @@ export interface Professional {
   address?: string;
   working_hours?: WorkingHours[];
   special_dates?: SpecialDate[];
+  gallery_images?: GalleryImage[];
+  gallery_enabled?: boolean;
 }
 
 export interface Appointment {
@@ -74,6 +83,7 @@ export type ViewState =
   | 'CLIENT_BOOKING'
   | 'CLIENT_CONFIRMATION'
   | 'CLIENT_DASHBOARD'
+  | 'CLIENT_GALLERY'
   | 'CLIENT_REVIEW'
   | 'PRO_DASHBOARD'
   | 'PRO_AGENDA'

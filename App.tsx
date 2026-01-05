@@ -15,6 +15,7 @@ import { ProDashboardView } from './views/ProDashboardView';
 import { AuthView } from './views/AuthView';
 import { AdminDashboardView } from './views/AdminDashboardView';
 import { ReviewView } from './views/ReviewView';
+import { ClientGalleryView } from './views/ClientGalleryView';
 
 const App: React.FC = () => {
   const [view, setView] = useState<ViewState>('LANDING');
@@ -100,9 +101,14 @@ const App: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [session, loading]);
 
-  const startBooking = useCallback((professional: any, service: any) => {
+  const handleSelectProfessional = useCallback((professional: any, service: any) => {
     setBookingContext({ professional, service });
     navigateTo('CLIENT_BOOKING');
+  }, [navigateTo]);
+
+  const handleViewGallery = useCallback((pro: any) => {
+    setBookingContext({ professional: pro, service: pro.services[0] }); // Service is dummy here
+    navigateTo('CLIENT_GALLERY');
   }, [navigateTo]);
 
   const confirmBooking = useCallback(async (date: string, time: string, clientName: string, clientWhatsApp: string) => {
@@ -213,7 +219,7 @@ const App: React.FC = () => {
       case 'ADMIN_DASHBOARD':
         return <AdminDashboardView userEmail={session?.user?.email} />;
       case 'CLIENT_SEARCH':
-        return <SearchView onSelectProfessional={startBooking} />;
+        return <SearchView onSelectProfessional={handleSelectProfessional} onViewGallery={handleViewGallery} />;
       case 'CLIENT_BOOKING':
         return bookingContext ? (
           <BookingView
@@ -247,6 +253,9 @@ const App: React.FC = () => {
         return <ProDashboardView currentSection="HOURS" onNavigate={navigateTo} />;
       case 'PRO_SERVICES':
         return <ProDashboardView currentSection="SERVICES" onNavigate={navigateTo} />;
+      case 'CLIENT_GALLERY':
+        if (!bookingContext.professional) return <SearchView onSelectProfessional={handleSelectProfessional} />;
+        return <ClientGalleryView professional={bookingContext.professional} onBack={() => setView('CLIENT_SEARCH')} />;
       case 'PRO_SETTINGS':
         return <ProDashboardView currentSection="SETTINGS" onNavigate={navigateTo} />;
       default:

@@ -4,11 +4,13 @@ import { AppointmentCard } from '../components/AppointmentCard';
 import { ViewState, Review } from '../types';
 import { supabase } from '../services/supabase';
 import { ReviewCarousel } from '../components/ReviewCarousel';
+import { GalleryManager } from '../components/GalleryManager';
 
 interface ProDashboardViewProps {
-  currentSection?: 'OVERVIEW' | 'AGENDA' | 'HOURS' | 'SERVICES' | 'SETTINGS';
+  currentSection?: 'OVERVIEW' | 'AGENDA' | 'HOURS' | 'SERVICES' | 'GALLERY' | 'SETTINGS';
   onNavigate?: (view: ViewState) => void;
 }
+
 
 const BackButton = ({ onClick }: { onClick?: () => void }) => (
   <button
@@ -400,8 +402,8 @@ const AgendaSection = ({ professional, onBack }: { professional: any, onBack?: (
                   key={label}
                   onClick={() => setFilterDate(value)}
                   className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${filterDate === value
-                      ? 'bg-primary text-white shadow-lg shadow-primary/20'
-                      : 'bg-gray-100 dark:bg-gray-800 text-text-secondary hover:bg-gray-200 dark:hover:bg-gray-700'
+                    ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                    : 'bg-gray-100 dark:bg-gray-800 text-text-secondary hover:bg-gray-200 dark:hover:bg-gray-700'
                     }`}
                 >
                   {label}
@@ -432,8 +434,8 @@ const AgendaSection = ({ professional, onBack }: { professional: any, onBack?: (
                   key={value}
                   onClick={() => setFilterStatus(value)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${filterStatus === value
-                      ? `${color} ring-2 ring-offset-2 ring-current`
-                      : `${color} opacity-60 hover:opacity-100`
+                    ? `${color} ring-2 ring-offset-2 ring-current`
+                    : `${color} opacity-60 hover:opacity-100`
                     }`}
                 >
                   {label}
@@ -1015,7 +1017,9 @@ const SettingsSection = ({ professional, onBack }: { professional: any, onBack?:
     bio: '',
     whatsapp: '',
     address: '',
-    image_url: ''
+    bio: '',
+    image_url: '',
+    gallery_enabled: false
   });
 
   const [pushStatus, setPushStatus] = React.useState<'default' | 'granted' | 'denied'>('default');
@@ -1029,7 +1033,8 @@ const SettingsSection = ({ professional, onBack }: { professional: any, onBack?:
         bio: professional.bio || '',
         whatsapp: professional.whatsapp || '',
         address: professional.address || '',
-        image_url: professional.image_url || ''
+        image_url: professional.image_url || '',
+        gallery_enabled: professional.gallery_enabled || false
       });
       setLoading(false);
     }
@@ -1105,16 +1110,18 @@ const SettingsSection = ({ professional, onBack }: { professional: any, onBack?:
         return;
       }
 
+      const updates = {
+        name: formData.name,
+        specialty: formData.specialty,
+        whatsapp: formData.whatsapp,
+        address: formData.address,
+        bio: formData.bio,
+        image_url: formData.image_url,
+        gallery_enabled: formData.gallery_enabled
+      };
       const { error } = await supabase
         .from('professionals')
-        .update({
-          name: formData.name,
-          specialty: formData.specialty,
-          bio: formData.bio,
-          whatsapp: formData.whatsapp,
-          address: formData.address,
-          image_url: formData.image_url
-        })
+        .update(updates)
         .eq('id', currentProId);
 
       if (error) alert('Erro ao salvar: ' + error.message);
@@ -1269,6 +1276,24 @@ const SettingsSection = ({ professional, onBack }: { professional: any, onBack?:
             />
           </div>
 
+          <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+            <div className="relative flex items-center">
+              <input
+                type="checkbox"
+                id="galleryToggle"
+                checked={formData.gallery_enabled}
+                onChange={e => setFormData({ ...formData, gallery_enabled: e.target.checked })}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+            </div>
+            <label htmlFor="galleryToggle" className="text-sm font-bold text-gray-700 dark:text-gray-300 cursor-pointer select-none">
+              Exibir galeria de fotos para clientes
+            </label>
+          </div>
+
+
+
           <div className="pt-4">
             <button
               onClick={handleSave}
@@ -1280,6 +1305,9 @@ const SettingsSection = ({ professional, onBack }: { professional: any, onBack?:
           </div>
         </div>
       </div>
+
+      {/* Gallery Integration in Settings */}
+      {proId && <GalleryManager professionalId={proId} />}
     </div>
   );
 };

@@ -6,9 +6,10 @@ import { supabase } from '../services/supabase';
 
 interface SearchViewProps {
   onSelectProfessional: (pro: any, service: any) => void;
+  onViewGallery?: (pro: any) => void;
 }
 
-export const SearchView: React.FC<SearchViewProps> = ({ onSelectProfessional }) => {
+export const SearchView: React.FC<SearchViewProps> = ({ onSelectProfessional, onViewGallery }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [professionals, setProfessionals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,7 +25,7 @@ export const SearchView: React.FC<SearchViewProps> = ({ onSelectProfessional }) 
     // Fetch professionals and their reviews for dynamic rating calculation
     const { data } = await supabase
       .from('professionals')
-      .select('*, reviews(rating)')
+      .select('*, reviews(rating), professional_gallery(*)')
 
       // Only show valid professionals (expiration_date >= today)
       .gte('expiration_date', new Date().toISOString().split('T')[0]);
@@ -35,7 +36,17 @@ export const SearchView: React.FC<SearchViewProps> = ({ onSelectProfessional }) 
         const avg = reviews.length > 0
           ? reviews.reduce((acc: number, r: any) => acc + r.rating, 0) / reviews.length
           : 5.0;
-        return { ...pro, rating: avg, reviewCount: reviews.length };
+
+        // Map Supabase relationship to expected interface property
+        // @ts-ignore
+        const gallery = pro.professional_gallery || [];
+
+        return {
+          ...pro,
+          rating: avg,
+          reviewCount: reviews.length,
+          gallery_images: gallery
+        };
       });
       setProfessionals(processed);
     }
@@ -138,6 +149,15 @@ export const SearchView: React.FC<SearchViewProps> = ({ onSelectProfessional }) 
                     <span className="material-symbols-outlined text-sm">location_on</span>
                     {pro.city || pro.location || 'Local não informado'}
                   </p>
+                  {pro.gallery_enabled && (
+                    <button
+                      onClick={() => onViewGallery?.(pro)}
+                      className="w-full py-3 bg-white text-primary border-2 border-primary font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-primary/5 transition-all mb-3"
+                    >
+                      Conheça meu trabalho
+                      <span className="material-symbols-outlined text-[18px]">photo_library</span>
+                    </button>
+                  )}
                   <button
                     onClick={() => onSelectProfessional(pro, pro.services?.[0])}
                     className="w-full py-3 bg-primary text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-primary-hover transition-all"

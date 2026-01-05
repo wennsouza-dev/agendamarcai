@@ -1,9 +1,9 @@
-
 import React, { useState } from 'react';
 import { Professional, Service, Review } from '../types';
 import { TIME_SLOTS } from '../constants';
 import { supabase } from '../services/supabase';
 import { ReviewCarousel } from '../components/ReviewCarousel';
+import { GalleryDisplay } from '../components/GalleryDisplay';
 
 interface BookingViewProps {
   professional: Professional;
@@ -229,6 +229,13 @@ export const BookingView: React.FC<BookingViewProps> = ({ professional, service,
               )}
             </div>
           </div>
+
+          {/* Gallery Integration */}
+          {professional.gallery_images && professional.gallery_images.length > 0 && (
+            <div className="bg-white dark:bg-surface-dark p-6 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
+              <GalleryDisplay images={professional.gallery_images} />
+            </div>
+          )}
 
           {/* Services List Integration */}
           <div className="flex flex-col gap-6">
