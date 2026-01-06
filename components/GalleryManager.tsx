@@ -11,7 +11,7 @@ export const GalleryManager: React.FC<GalleryManagerProps> = ({ professionalId }
     const [uploading, setUploading] = useState(false);
     const [loading, setLoading] = useState(true);
 
-    const MAX_IMAGES = 25;
+    const MAX_IMAGES = 10;
 
     useEffect(() => {
         fetchGallery();
