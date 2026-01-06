@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { ViewState } from '../types';
+import { PricingSection } from '../components/PricingSection';
 
 interface LandingViewProps {
   setView: (view: ViewState) => void;
@@ -70,6 +71,9 @@ export const LandingView: React.FC<LandingViewProps> = ({ setView }) => {
           </div>
         </div>
       </section>
+
+      {/* Pricing Section */}
+      <PricingSection />
 
       {/* Testimonials */}
       <section className="py-24 px-6 bg-white dark:bg-[#1a2027]">
