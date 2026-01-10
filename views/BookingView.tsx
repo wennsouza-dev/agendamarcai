@@ -173,6 +173,9 @@ export const BookingView: React.FC<BookingViewProps> = ({ professional, service,
               {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'].map(d => <div key={d}>{d}</div>)}
             </div>
             <div className="grid grid-cols-7 gap-2">
+              {Array.from({ length: new Date().getDay() }).map((_, i) => (
+                <div key={`empty-${i}`} className="p-2" />
+              ))}
               {Array.from({ length: 14 }).map((_, i) => {
                 const date = new Date();
                 date.setDate(date.getDate() + i);

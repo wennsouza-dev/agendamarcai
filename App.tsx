@@ -2,6 +2,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { ViewState, BookingContext, Appointment, AppointmentStatus } from './types';
 import { Layout } from './components/Layout';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { MOCK_APPOINTMENTS } from './constants';
 import { supabase } from './services/supabase';
 
@@ -254,7 +255,7 @@ const App: React.FC = () => {
       case 'PRO_SERVICES':
         return <ProDashboardView currentSection="SERVICES" onNavigate={navigateTo} />;
       case 'CLIENT_GALLERY':
-        if (!bookingContext.professional) return <SearchView onSelectProfessional={handleSelectProfessional} />;
+        if (!bookingContext?.professional) return <SearchView onSelectProfessional={handleSelectProfessional} onViewGallery={handleViewGallery} />;
         return <ClientGalleryView professional={bookingContext.professional} onBack={() => setView('CLIENT_SEARCH')} />;
       case 'PRO_SETTINGS':
         return <ProDashboardView currentSection="SETTINGS" onNavigate={navigateTo} />;
@@ -265,7 +266,9 @@ const App: React.FC = () => {
 
   return (
     <Layout currentView={view} setView={navigateTo} userEmail={session?.user?.email}>
-      {renderView()}
+      <ErrorBoundary>
+        {renderView()}
+      </ErrorBoundary>
     </Layout>
   );
 };

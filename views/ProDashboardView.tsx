@@ -1017,7 +1017,7 @@ const SettingsSection = ({ professional, onBack }: { professional: any, onBack?:
     bio: '',
     whatsapp: '',
     address: '',
-    bio: '',
+
     image_url: '',
     gallery_enabled: false
   });
