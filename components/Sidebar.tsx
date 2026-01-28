@@ -24,6 +24,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, userType
             view: userType === 'PRO' ? 'PRO_AGENDA' : 'CLIENT_DASHBOARD'
         },
         {
+            label: 'Financeiro',
+            icon: 'payments',
+            view: 'PRO_FINANCIAL',
+            visible: userType === 'PRO'
+        },
+        {
             label: 'Horários',
             icon: 'schedule',
             view: 'PRO_HOURS',

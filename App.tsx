@@ -254,6 +254,8 @@ const App: React.FC = () => {
         return <ProDashboardView currentSection="HOURS" onNavigate={navigateTo} />;
       case 'PRO_SERVICES':
         return <ProDashboardView currentSection="SERVICES" onNavigate={navigateTo} />;
+      case 'PRO_FINANCIAL':
+        return <ProDashboardView currentSection="FINANCIAL" onNavigate={navigateTo} />;
       case 'CLIENT_GALLERY':
         if (!bookingContext?.professional) return <SearchView onSelectProfessional={handleSelectProfessional} onViewGallery={handleViewGallery} />;
         return <ClientGalleryView professional={bookingContext.professional} onBack={() => setView('CLIENT_SEARCH')} />;

@@ -54,6 +54,7 @@ export interface Appointment {
   professional: Professional;
   date: string;
   time: string;
+  price?: number;
   status: AppointmentStatus;
 }
 
@@ -89,6 +90,8 @@ export type ViewState =
   | 'PRO_AGENDA'
   | 'PRO_SERVICES'
   | 'PRO_HOURS'
+  | 'PRO_SERVICES'
+  | 'PRO_FINANCIAL'
   | 'PRO_SETTINGS'
   | 'ADMIN_DASHBOARD';
 

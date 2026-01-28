@@ -7,7 +7,7 @@ import { ReviewCarousel } from '../components/ReviewCarousel';
 import { GalleryManager } from '../components/GalleryManager';
 
 interface ProDashboardViewProps {
-  currentSection?: 'OVERVIEW' | 'AGENDA' | 'HOURS' | 'SERVICES' | 'GALLERY' | 'SETTINGS';
+  currentSection?: 'OVERVIEW' | 'AGENDA' | 'HOURS' | 'SERVICES' | 'GALLERY' | 'SETTINGS' | 'FINANCIAL';
   onNavigate?: (view: ViewState) => void;
 }
 
@@ -156,7 +156,16 @@ const OverviewSection = ({ professional }: { professional: any }) => {
     };
     const newStatus = statusMap[action];
     if (newStatus) {
-      await supabase.from('appointments').update({ status: newStatus }).eq('id', id);
+      // Create update object
+      const updateData: any = { status: newStatus };
+
+      // If completing, snapshot the price
+      if (newStatus === 'completed') {
+        const service = professional.services?.find((s: any) => s.name === appointment.service_name);
+        if (service) updateData.price = service.price;
+      }
+
+      await supabase.from('appointments').update(updateData).eq('id', id);
     }
     fetchOverviewData();
   };
@@ -360,7 +369,16 @@ const AgendaSection = ({ professional, onBack }: { professional: any, onBack?: (
     };
     const newStatus = statusMap[action];
     if (newStatus) {
-      await supabase.from('appointments').update({ status: newStatus }).eq('id', id);
+      // Create update object
+      const updateData: any = { status: newStatus };
+
+      // If completing, snapshot the price
+      if (newStatus === 'completed') {
+        const service = professional.services?.find((s: any) => s.name === appointment.service_name);
+        if (service) updateData.price = service.price;
+      }
+
+      await supabase.from('appointments').update(updateData).eq('id', id);
     }
     fetchAppointments();
   };
@@ -1312,6 +1330,164 @@ const SettingsSection = ({ professional, onBack }: { professional: any, onBack?:
   );
 };
 
+const FinancialSection = ({ professional, onBack }: { professional: any, onBack?: () => void }) => {
+  const [entries, setEntries] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [filterType, setFilterType] = React.useState<'DAY' | 'MONTH'>('DAY');
+
+  // Dates for filters
+  const [selectedDate, setSelectedDate] = React.useState(new Date().toISOString().split('T')[0]);
+  const [selectedMonth, setSelectedMonth] = React.useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
+
+  React.useEffect(() => {
+    fetchEntries();
+  }, [professional, filterType, selectedDate, selectedMonth]);
+
+  const fetchEntries = async () => {
+    if (!professional) return;
+    setLoading(true);
+
+    let query = supabase
+      .from('appointments')
+      .select('*')
+      .eq('professional_id', professional.id)
+      .eq('status', 'completed')
+      .order('date', { ascending: false })
+      .order('time', { ascending: false });
+
+    if (filterType === 'DAY') {
+      // Assuming date stored as YYYY-MM-DD
+      query = query.eq('date', selectedDate);
+    } else {
+      // Month filter: startsWith YYYY-MM
+      // Since date is stored as text YYYY-MM-DD, we filter by string range
+      const start = `${selectedMonth}-01`;
+      const end = `${selectedMonth}-31`;
+      query = query.gte('date', start).lte('date', end);
+    }
+
+    const { data } = await query;
+    if (data) setEntries(data);
+    setLoading(false);
+  };
+
+  const totalValue = entries.reduce((acc, entry) => {
+    // 1. Use stored snapshot price if available
+    let price = entry.price;
+    if (price === undefined || price === null) {
+      // 2. Fallback: Find current service price
+      const service = professional.services?.find((s: any) => s.name === entry.service_name);
+      price = service?.price || 0;
+    }
+    return acc + Number(price);
+  }, 0);
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
+      <div className="flex justify-between items-center">
+        <div>
+          <BackButton onClick={onBack} />
+          <h1 className="text-3xl font-black tracking-tight flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary text-3xl">payments</span>
+            Controle Financeiro
+          </h1>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] uppercase font-black text-text-secondary tracking-widest">Total {filterType === 'DAY' ? 'do Dia' : 'do Mês'}</p>
+          <p className="text-3xl font-black text-emerald-600">R$ {totalValue.toFixed(2)}</p>
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-surface-dark p-4 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm flex flex-wrap gap-4 items-center">
+        <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
+          <button
+            onClick={() => setFilterType('DAY')}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${filterType === 'DAY' ? 'bg-white dark:bg-surface-dark shadow text-primary' : 'text-text-secondary'}`}
+          >
+            Dia
+          </button>
+          <button
+            onClick={() => setFilterType('MONTH')}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${filterType === 'MONTH' ? 'bg-white dark:bg-surface-dark shadow text-primary' : 'text-text-secondary'}`}
+          >
+            Mês
+          </button>
+        </div>
+
+        {filterType === 'DAY' ? (
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="bg-gray-50 dark:bg-gray-800 border-none rounded-xl p-2.5 font-bold text-sm outline-none focus:ring-2 ring-primary/20"
+          />
+        ) : (
+          <input
+            type="month"
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="bg-gray-50 dark:bg-gray-800 border-none rounded-xl p-2.5 font-bold text-sm outline-none focus:ring-2 ring-primary/20"
+          />
+        )}
+      </div>
+
+      <div className="space-y-4">
+        {loading ? (
+          <div className="text-center py-10 animate-pulse text-text-secondary">Carregando financeiro...</div>
+        ) : entries.length > 0 ? (
+          <div className="bg-white dark:bg-surface-dark rounded-2xl border border-gray-100 dark:border-gray-800 overflow-hidden">
+            <table className="w-full text-left">
+              <thead className="bg-gray-50 dark:bg-gray-800/50 text-[10px] uppercase font-black text-text-secondary tracking-widest">
+                <tr>
+                  <th className="p-4">Data</th>
+                  <th className="p-4">Cliente</th>
+                  <th className="p-4">Serviço</th>
+                  <th className="p-4 text-right">Valor</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800 font-medium text-sm">
+                {entries.map(entry => {
+                  let displayPrice = 0;
+                  if (entry.price !== undefined && entry.price !== null) {
+                    displayPrice = Number(entry.price);
+                  } else {
+                    const service = professional.services?.find((s: any) => s.name === entry.service_name);
+                    displayPrice = service?.price || 0;
+                  }
+                  return (
+                    <tr key={entry.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/10 transition-colors">
+                      <td className="p-4">
+                        <div className="flex flex-col">
+                          <span className="font-bold">{entry.date.split('-').reverse().slice(0, 2).join('/')}</span>
+                          <span className="text-xs text-text-secondary">{entry.time}</span>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <span className="block truncate max-w-[150px]">{entry.client_name || 'Cliente'}</span>
+                      </td>
+                      <td className="p-4">
+                        <span className="block truncate max-w-[150px]">{entry.service_name}</span>
+                      </td>
+                      <td className="p-4 text-right font-black text-emerald-600">
+                        R$ {displayPrice.toFixed(2)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-20 bg-gray-50/50 dark:bg-gray-900/10 rounded-2xl border border-dashed border-gray-300 dark:border-gray-800">
+            <span className="material-symbols-outlined text-4xl text-gray-300 mb-2">savings</span>
+            <p className="text-text-secondary">Nenhuma entrada financeira encontrada neste período.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export const ProDashboardView: React.FC<ProDashboardViewProps> = ({ currentSection = 'OVERVIEW', onNavigate }) => {
   const [professional, setProfessional] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
@@ -1350,6 +1526,7 @@ export const ProDashboardView: React.FC<ProDashboardViewProps> = ({ currentSecti
       {currentSection === 'HOURS' && <HoursSection professional={professional} onBack={goBack} />}
       {currentSection === 'SERVICES' && <ServicesSection professional={professional} onBack={goBack} onRefresh={fetchProfessional} />}
       {currentSection === 'SETTINGS' && <SettingsSection professional={professional} onBack={goBack} />}
+      {currentSection === 'FINANCIAL' && <FinancialSection professional={professional} onBack={goBack} />}
     </div>
   );
 };
