@@ -26,12 +26,6 @@ export const LandingView: React.FC<LandingViewProps> = ({ setView }) => {
             >
               Agendar agora
             </button>
-            <button
-              onClick={() => setView('PRO_DASHBOARD')}
-              className="px-8 py-4 bg-gray-100 dark:bg-[#283039] font-bold rounded-xl transition-all"
-            >
-              Sou profissional
-            </button>
           </div>
         </div>
         <div className="flex-1 w-full max-w-xl">

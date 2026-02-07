@@ -22,13 +22,8 @@ export const Header: React.FC<{ setView: (view: ViewState) => void, isLanding: b
     <div className="flex items-center gap-4 lg:gap-8">
       {isLanding ? (
         <>
-          <nav className="hidden md:flex items-center gap-6">
-            <button onClick={() => setView('CLIENT_SEARCH')} className="text-sm font-medium hover:text-primary transition-colors">Sou Cliente</button>
-            <button onClick={() => setView('PRO_DASHBOARD')} className="text-sm font-medium hover:text-primary transition-colors">Sou Profissional</button>
-          </nav>
           <div className="flex gap-2">
-            <button onClick={() => setView('PRO_DASHBOARD')} className="hidden sm:flex px-4 py-2 rounded-lg bg-gray-100 dark:bg-[#283039] text-sm font-bold">Entrar</button>
-            <button onClick={() => setView('CLIENT_SEARCH')} className="px-4 py-2 rounded-lg bg-primary text-white text-sm font-bold shadow-lg shadow-primary/20 hover:bg-primary-hover transition-all">Cadastrar</button>
+            <button onClick={() => setView('PRO_DASHBOARD')} className="px-4 py-2 rounded-lg bg-primary text-white text-sm font-bold shadow-lg shadow-primary/20 hover:bg-primary-hover transition-all">Área do profissional</button>
           </div>
         </>
       ) : (
@@ -42,7 +37,7 @@ export const Header: React.FC<{ setView: (view: ViewState) => void, isLanding: b
         </div>
       )}
     </div>
-  </header>
+  </header >
 );
 
 export const Footer: React.FC = () => (

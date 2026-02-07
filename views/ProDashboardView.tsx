@@ -1331,7 +1331,8 @@ const SettingsSection = ({ professional, onBack }: { professional: any, onBack?:
 };
 
 const FinancialSection = ({ professional, onBack }: { professional: any, onBack?: () => void }) => {
-  const [entries, setEntries] = React.useState<any[]>([]);
+  const [entries, setEntries] = React.useState<any[]>([]); // Appointments (Income)
+  const [expenses, setExpenses] = React.useState<any[]>([]); // Expenses (Outcome)
   const [loading, setLoading] = React.useState(true);
   const [filterType, setFilterType] = React.useState<'DAY' | 'MONTH'>('DAY');
 
@@ -1339,52 +1340,193 @@ const FinancialSection = ({ professional, onBack }: { professional: any, onBack?
   const [selectedDate, setSelectedDate] = React.useState(new Date().toISOString().split('T')[0]);
   const [selectedMonth, setSelectedMonth] = React.useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
 
+  // Expense Modal State
+  const [showExpenseModal, setShowExpenseModal] = React.useState(false);
+  const [editExpenseId, setEditExpenseId] = React.useState<string | null>(null);
+  const [expenseForm, setExpenseForm] = React.useState({
+    description: '',
+    amount: '',
+    category: '',
+    date: new Date().toISOString().split('T')[0]
+  });
+
   React.useEffect(() => {
-    fetchEntries();
+    fetchFinancialData();
   }, [professional, filterType, selectedDate, selectedMonth]);
 
-  const fetchEntries = async () => {
+  const fetchFinancialData = async () => {
     if (!professional) return;
     setLoading(true);
 
-    let query = supabase
+    // 1. Fetch Income (Appointments)
+    let incomeQuery = supabase
       .from('appointments')
       .select('*')
       .eq('professional_id', professional.id)
-      .eq('status', 'completed')
-      .order('date', { ascending: false })
-      .order('time', { ascending: false });
+      .eq('status', 'completed');
+
+    // 2. Fetch Expenses
+    let expenseQuery = supabase
+      .from('expenses')
+      .select('*')
+      .eq('professional_id', professional.id);
 
     if (filterType === 'DAY') {
-      // Assuming date stored as YYYY-MM-DD
-      query = query.eq('date', selectedDate);
+      incomeQuery = incomeQuery.eq('date', selectedDate);
+      expenseQuery = expenseQuery.eq('date', selectedDate);
     } else {
-      // Month filter: startsWith YYYY-MM
-      // Since date is stored as text YYYY-MM-DD, we filter by string range
       const start = `${selectedMonth}-01`;
       const end = `${selectedMonth}-31`;
-      query = query.gte('date', start).lte('date', end);
+      incomeQuery = incomeQuery.gte('date', start).lte('date', end);
+      expenseQuery = expenseQuery.gte('date', start).lte('date', end);
     }
 
-    const { data } = await query;
-    if (data) setEntries(data);
+    const [incomeRes, expenseRes] = await Promise.all([incomeQuery, expenseQuery]);
+
+    if (incomeRes.data) setEntries(incomeRes.data);
+    if (expenseRes.data) setExpenses(expenseRes.data);
     setLoading(false);
   };
 
-  const totalValue = entries.reduce((acc, entry) => {
-    // 1. Use stored snapshot price if available
+  const handleSaveExpense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!professional) return;
+
+    const amount = parseFloat(expenseForm.amount.toString().replace('R$', '').replace(',', '.').trim());
+    if (isNaN(amount) || amount <= 0) {
+      alert('Por favor, insira um valor válido.');
+      return;
+    }
+
+    const expenseData = {
+      professional_id: professional.id,
+      description: expenseForm.description,
+      amount: amount,
+      category: expenseForm.category,
+      date: expenseForm.date
+    };
+
+    let error;
+    if (editExpenseId) {
+      // Update existing expense
+      const { error: updateError } = await supabase
+        .from('expenses')
+        .update(expenseData)
+        .eq('id', editExpenseId);
+      error = updateError;
+    } else {
+      // Create new expense
+      const { error: insertError } = await supabase
+        .from('expenses')
+        .insert(expenseData);
+      error = insertError;
+    }
+
+    if (error) {
+      alert('Erro ao salvar despesa: ' + error.message);
+    } else {
+      setShowExpenseModal(false);
+      setEditExpenseId(null);
+      setExpenseForm({
+        description: '',
+        amount: '',
+        category: '',
+        date: new Date().toISOString().split('T')[0]
+      });
+      fetchFinancialData();
+    }
+  };
+
+  const handleEditExpense = (expense: any) => {
+    setEditExpenseId(expense.id);
+    setExpenseForm({
+      description: expense.description,
+      amount: expense.amount,
+      category: expense.category || '',
+      date: expense.date
+    });
+    setShowExpenseModal(true);
+  };
+
+  const handleDeleteExpense = async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir esta despesa?')) return;
+
+    const { error } = await supabase
+      .from('expenses')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      alert('Erro ao excluir despesa: ' + error.message);
+    } else {
+      fetchFinancialData();
+    }
+  };
+
+  const openNewExpenseModal = () => {
+    setEditExpenseId(null);
+    setExpenseForm({
+      description: '',
+      amount: '',
+      category: '',
+      date: new Date().toISOString().split('T')[0]
+    });
+    setShowExpenseModal(true);
+  };
+
+  const totalIncome = entries.reduce((acc, entry) => {
     let price = entry.price;
     if (price === undefined || price === null) {
-      // 2. Fallback: Find current service price
       const service = professional.services?.find((s: any) => s.name === entry.service_name);
       price = service?.price || 0;
     }
     return acc + Number(price);
   }, 0);
 
+  const totalExpenses = expenses.reduce((acc, exp) => acc + Number(exp.amount), 0);
+  const balance = totalIncome - totalExpenses;
+
+  // Merge and Sort Transactions
+  const transactions = React.useMemo(() => {
+    const incomeItems = entries.map(e => ({
+      id: e.id,
+      type: 'INCOME',
+      date: e.date,
+      time: e.time,
+      description: e.service_name,
+      client: e.client_name,
+      amount: (() => {
+        let price = e.price;
+        if (price === undefined || price === null) {
+          const service = professional.services?.find((s: any) => s.name === e.service_name);
+          price = service?.price || 0;
+        }
+        return Number(price);
+      })(),
+      original: e
+    }));
+
+    const expenseItems = expenses.map(e => ({
+      id: e.id,
+      type: 'EXPENSE',
+      date: e.date,
+      time: '00:00', // Expenses often don't have time, defaulting
+      description: e.description,
+      client: '-',
+      amount: Number(e.amount),
+      category: e.category,
+      original: e
+    }));
+
+    return [...incomeItems, ...expenseItems].sort((a, b) => {
+      if (a.date !== b.date) return b.date.localeCompare(a.date);
+      return b.time.localeCompare(a.time);
+    });
+  }, [entries, expenses, professional]);
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <BackButton onClick={onBack} />
           <h1 className="text-3xl font-black tracking-tight flex items-center gap-2">
@@ -1392,9 +1534,29 @@ const FinancialSection = ({ professional, onBack }: { professional: any, onBack?
             Controle Financeiro
           </h1>
         </div>
-        <div className="text-right">
-          <p className="text-[10px] uppercase font-black text-text-secondary tracking-widest">Total {filterType === 'DAY' ? 'do Dia' : 'do Mês'}</p>
-          <p className="text-3xl font-black text-emerald-600">R$ {totalValue.toFixed(2)}</p>
+        <button
+          onClick={openNewExpenseModal}
+          className="bg-red-500 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-red-600 transition-all shadow-lg shadow-red-500/20 flex items-center gap-2"
+        >
+          <span className="material-symbols-outlined text-sm">remove_circle</span>
+          Adicionar Despesa
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-emerald-50 dark:bg-emerald-900/10 p-6 rounded-2xl border border-emerald-100 dark:border-emerald-800">
+          <p className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-1">Entradas</p>
+          <p className="text-2xl font-black text-emerald-700 dark:text-emerald-500">+ R$ {totalIncome.toFixed(2)}</p>
+        </div>
+        <div className="bg-red-50 dark:bg-red-900/10 p-6 rounded-2xl border border-red-100 dark:border-red-800">
+          <p className="text-xs font-black text-red-600 dark:text-red-400 uppercase tracking-widest mb-1">Saídas</p>
+          <p className="text-2xl font-black text-red-700 dark:text-red-500">- R$ {totalExpenses.toFixed(2)}</p>
+        </div>
+        <div className="bg-white dark:bg-surface-dark p-6 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
+          <p className="text-xs font-black text-text-secondary uppercase tracking-widest mb-1">Saldo {filterType === 'DAY' ? 'do Dia' : 'do Mês'}</p>
+          <p className={`text-2xl font-black ${balance >= 0 ? 'text-primary' : 'text-red-500'}`}>
+            R$ {balance.toFixed(2)}
+          </p>
         </div>
       </div>
 
@@ -1434,56 +1596,138 @@ const FinancialSection = ({ professional, onBack }: { professional: any, onBack?
       <div className="space-y-4">
         {loading ? (
           <div className="text-center py-10 animate-pulse text-text-secondary">Carregando financeiro...</div>
-        ) : entries.length > 0 ? (
+        ) : transactions.length > 0 ? (
           <div className="bg-white dark:bg-surface-dark rounded-2xl border border-gray-100 dark:border-gray-800 overflow-hidden">
             <table className="w-full text-left">
               <thead className="bg-gray-50 dark:bg-gray-800/50 text-[10px] uppercase font-black text-text-secondary tracking-widest">
                 <tr>
                   <th className="p-4">Data</th>
-                  <th className="p-4">Cliente</th>
-                  <th className="p-4">Serviço</th>
+                  <th className="p-4">Descrição</th>
+                  <th className="p-4 hidden md:table-cell">Cliente / Categoria</th>
                   <th className="p-4 text-right">Valor</th>
+                  <th className="p-4 w-10"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800 font-medium text-sm">
-                {entries.map(entry => {
-                  let displayPrice = 0;
-                  if (entry.price !== undefined && entry.price !== null) {
-                    displayPrice = Number(entry.price);
-                  } else {
-                    const service = professional.services?.find((s: any) => s.name === entry.service_name);
-                    displayPrice = service?.price || 0;
-                  }
-                  return (
-                    <tr key={entry.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/10 transition-colors">
-                      <td className="p-4">
-                        <div className="flex flex-col">
-                          <span className="font-bold">{entry.date.split('-').reverse().slice(0, 2).join('/')}</span>
-                          <span className="text-xs text-text-secondary">{entry.time}</span>
+                {transactions.map(item => (
+                  <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/10 transition-colors group">
+                    <td className="p-4">
+                      <div className="flex flex-col">
+                        <span className="font-bold">{item.date.split('-').reverse().slice(0, 2).join('/')}</span>
+                        {item.type === 'INCOME' && <span className="text-xs text-text-secondary">{item.time}</span>}
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <span className="block font-bold truncate max-w-[150px]">{item.description}</span>
+                    </td>
+                    <td className="p-4 hidden md:table-cell">
+                      <span className="block truncate max-w-[150px] text-text-secondary">
+                        {item.type === 'INCOME' ? item.client : item.category || 'Geral'}
+                      </span>
+                    </td>
+                    <td className={`p-4 text-right font-black ${item.type === 'INCOME' ? 'text-emerald-600' : 'text-red-500'}`}>
+                      {item.type === 'INCOME' ? '+' : '-'} R$ {item.amount.toFixed(2)}
+                    </td>
+                    <td className="p-4 text-right">
+                      {item.type === 'EXPENSE' && (
+                        <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => handleEditExpense(item.original)}
+                            className="p-1 text-text-secondary hover:text-primary rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+                            title="Editar"
+                          >
+                            <span className="material-symbols-outlined text-lg">edit</span>
+                          </button>
+                          <button
+                            onClick={() => handleDeleteExpense(item.id)}
+                            className="p-1 text-text-secondary hover:text-red-500 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+                            title="Excluir"
+                          >
+                            <span className="material-symbols-outlined text-lg">delete</span>
+                          </button>
                         </div>
-                      </td>
-                      <td className="p-4">
-                        <span className="block truncate max-w-[150px]">{entry.client_name || 'Cliente'}</span>
-                      </td>
-                      <td className="p-4">
-                        <span className="block truncate max-w-[150px]">{entry.service_name}</span>
-                      </td>
-                      <td className="p-4 text-right font-black text-emerald-600">
-                        R$ {displayPrice.toFixed(2)}
-                      </td>
-                    </tr>
-                  );
-                })}
+                      )}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         ) : (
           <div className="text-center py-20 bg-gray-50/50 dark:bg-gray-900/10 rounded-2xl border border-dashed border-gray-300 dark:border-gray-800">
-            <span className="material-symbols-outlined text-4xl text-gray-300 mb-2">savings</span>
-            <p className="text-text-secondary">Nenhuma entrada financeira encontrada neste período.</p>
+            <span className="material-symbols-outlined text-4xl text-gray-300 mb-2">account_balance_wallet</span>
+            <p className="text-text-secondary">Nenhuma movimentação financeira encontrada.</p>
           </div>
         )}
       </div>
+
+      {showExpenseModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white dark:bg-surface-dark w-full max-w-md rounded-2xl p-6 shadow-xl animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <span className="material-symbols-outlined text-red-500">remove_circle</span>
+                {editExpenseId ? 'Editar Despesa' : 'Nova Despesa'}
+              </h2>
+              <button onClick={() => setShowExpenseModal(false)} className="text-text-secondary hover:text-red-500">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <form onSubmit={handleSaveExpense} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-text-secondary uppercase mb-1">Descrição</label>
+                <input
+                  required
+                  value={expenseForm.description}
+                  onChange={e => setExpenseForm({ ...expenseForm, description: e.target.value })}
+                  className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3 outline-none focus:border-red-500 transition-colors"
+                  placeholder="Ex: Aluguel, Shampoo, Manutenção"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-text-secondary uppercase mb-1">Valor (R$)</label>
+                  <input
+                    required
+                    type="number"
+                    step="0.01"
+                    value={expenseForm.amount}
+                    onChange={e => setExpenseForm({ ...expenseForm, amount: e.target.value })}
+                    className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3 outline-none focus:border-red-500 transition-colors font-bold text-red-500"
+                    placeholder="0.00"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-text-secondary uppercase mb-1">Data</label>
+                  <input
+                    required
+                    type="date"
+                    value={expenseForm.date}
+                    onChange={e => setExpenseForm({ ...expenseForm, date: e.target.value })}
+                    className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3 outline-none focus:border-red-500 transition-colors"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-text-secondary uppercase mb-1">Categoria (Opcional)</label>
+                <input
+                  value={expenseForm.category}
+                  onChange={e => setExpenseForm({ ...expenseForm, category: e.target.value })}
+                  className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3 outline-none focus:border-red-500 transition-colors"
+                  placeholder="Ex: Produtos, Contas, Equipamentos"
+                />
+              </div>
+
+              <div className="pt-4 flex gap-3">
+                <button type="button" onClick={() => setShowExpenseModal(false)} className="flex-1 py-3 font-bold text-text-secondary hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors">Cancelar</button>
+                <button type="submit" className="flex-1 py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors shadow-lg shadow-red-500/20">
+                  {editExpenseId ? 'Salvar Alterações' : 'Salvar Despesa'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
