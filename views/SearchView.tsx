@@ -201,50 +201,91 @@ export const SearchView: React.FC<SearchViewProps> = ({ onSelectProfessional, on
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredPros.map(pro => (
             <div key={pro.id} className="bg-white dark:bg-surface-dark rounded-2xl border border-gray-100 dark:border-gray-800 overflow-hidden group hover:border-primary/40 transition-all shadow-sm">
-              <div className="relative h-48 bg-gray-200">
-                <img
-                  src={pro.image_url || 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=800'}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-all duration-500"
-                  alt={pro.name}
-                />
-                <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-lg flex items-center gap-1">
-                  <span className="material-symbols-outlined text-yellow-400 text-sm fill-1">star</span>
-                  <span className="text-white text-xs font-bold">{pro.rating?.toFixed(1) || '5.0'}</span>
-                </div>
+              {/* Cover Image */}
+              <div className="h-32 bg-[#E0F2FE] dark:bg-[#1E252B] relative overflow-hidden group-hover:bg-[#dbeafe] transition-colors">
+                {/* Solid light blue background as requested */}
               </div>
-              <div className="p-5 flex flex-col gap-4">
-                <div>
-                  <h3 className="text-lg font-bold group-hover:text-primary transition-colors">{pro.name}</h3>
-                  <p className="text-sm text-text-secondary font-medium">{pro.category} • {pro.distance || '0.5km'}</p>
-                  {pro.salon_name && <p className="text-xs text-text-secondary font-medium mt-1">{pro.salon_name}</p>}
+
+              <div className="px-5 pb-5 relative">
+                {/* Avatar & Rating Container */}
+                <div className="absolute -top-10 left-4 flex flex-col items-center z-10 w-20">
+                  {/* Circular Avatar */}
+                  <div className="size-20 rounded-full border-4 border-white dark:border-[#1E252B] overflow-hidden shadow-md bg-white">
+                    <img
+                      src={pro.image_url || 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=800'}
+                      className="w-full h-full object-cover"
+                      alt={pro.name}
+                    />
+                  </div>
+                  {/* Rating Badge - Below Photo */}
+                  <div className="mt-1 bg-white dark:bg-[#283039] px-2 py-0.5 rounded-full border border-gray-100 dark:border-gray-700 shadow-sm flex items-center gap-1">
+                    <span className="material-symbols-outlined text-yellow-400 text-xs fill-1">star</span>
+                    <span className="text-xs font-bold text-slate-700 dark:text-gray-200">{pro.rating?.toFixed(1) || '5.0'}</span>
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {pro.services && pro.services.slice(0, 3).map((s: any, idx: number) => (
-                    <span key={idx} className="px-2 py-1 bg-gray-100 dark:bg-[#283039] rounded text-[10px] font-bold uppercase tracking-wider">
-                      {s.name || s}
+
+                {/* Content - Information (Aligned right of avatar) */}
+                <div className="pl-24 pt-1">
+                  <div>
+                    <h3 className="text-lg font-bold group-hover:text-primary transition-colors leading-tight">{pro.name}</h3>
+
+                    {pro.salon_name && pro.salon_name !== 'N/A' && (
+                      <p className="text-sm font-bold text-text-secondary mt-0.5">{pro.salon_name}</p>
+                    )}
+
+                    <p className="text-sm text-text-secondary font-medium mt-0.5">
+                      {pro.specialty || pro.category}
+                    </p>
+
+                    <p className="text-sm text-text-secondary font-medium mt-0.5 capitalize">
+                      {pro.city || pro.location || 'Local não informado'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Action Buttons & Links */}
+                <div className="pt-5 flex flex-col gap-2">
+                  {/* WhatsApp Button "Fale comigo" */}
+                  {pro.whatsapp && (
+                    <a
+                      href={`https://wa.me/55${pro.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent("Olá, vim pelo MarcAI Agenda. Gostaria de mais informações.")}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full py-2 bg-emerald-50 text-emerald-600 border border-emerald-200 font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-emerald-100 transition-all text-sm mb-1"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">chat</span>
+                      Fale comigo
+                    </a>
+                  )}
+
+                  {/* Location Link (Google Maps) */}
+                  <a
+                    href={pro.address || pro.city || pro.location ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${pro.address ? `${pro.address} - ` : ''}${pro.city || pro.location}`)}` : '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-text-secondary hover:text-primary transition-colors flex items-center justify-center gap-1 text-center mb-2"
+                    onClick={(e) => !(pro.address || pro.city || pro.location) && e.preventDefault()}
+                  >
+                    <span className="material-symbols-outlined text-sm shrink-0">location_on</span>
+                    <span className="truncate max-w-[250px]">
+                      {pro.address ? `${pro.address} - ` : ''}{pro.city || pro.location || 'Endereço não informado'}
                     </span>
-                  ))}
-                </div>
-                <div className="pt-2">
-                  <p className="text-xs text-text-secondary mb-3 flex items-center gap-1">
-                    <span className="material-symbols-outlined text-sm">location_on</span>
-                    {pro.city || pro.location || 'Local não informado'}
-                  </p>
-                  {pro.gallery_enabled && (
+                  </a>
+
+                  {pro.gallery_enabled && pro.gallery_images?.length > 0 && (
                     <button
                       onClick={() => onViewGallery?.(pro)}
-                      className="w-full py-3 bg-white text-primary border-2 border-primary font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-primary/5 transition-all mb-3"
+                      className="w-full py-3 bg-white dark:bg-transparent text-primary border-2 border-primary font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-primary/5 transition-all text-sm"
                     >
-                      Conheça meu trabalho
+                      Galeria de Fotos
                       <span className="material-symbols-outlined text-[18px]">photo_library</span>
                     </button>
                   )}
                   <button
                     onClick={() => onSelectProfessional(pro, pro.services?.[0])}
-                    className="w-full py-3 bg-primary text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-primary-hover transition-all"
+                    className="w-full py-3 bg-primary text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-primary-hover transition-all text-sm"
                   >
-                    Ver horários
-                    <span className="material-symbols-outlined text-[18px]">calendar_month</span>
+                    Agendar Horário
                   </button>
                 </div>
               </div>

@@ -22,6 +22,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ userEmai
         specialty: '',
         location: '',
         salon_name: '',
+        salon_name_na: false, // New field for N/A toggle
         reset_word: 'mudar123', // Default temp password
         expire_days: 30
     });
@@ -81,7 +82,8 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ userEmai
                 email: pro.email || '',
                 specialty: pro.category || '',
                 location: pro.city || '',
-                salon_name: pro.salon_name || '',
+                salon_name: pro.salon_name === 'N/A' ? '' : (pro.salon_name || ''),
+                salon_name_na: pro.salon_name === 'N/A',
                 reset_word: pro.reset_word || '',
                 expire_days: pro.expiration_date ? Math.ceil((new Date(pro.expiration_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 30
             });
@@ -93,6 +95,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ userEmai
                 specialty: '',
                 location: '',
                 salon_name: '',
+                salon_name_na: false,
                 reset_word: 'mudar123',
                 expire_days: 30
             });
@@ -114,16 +117,18 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ userEmai
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const { name, email, specialty, location, salon_name, reset_word, expire_days } = formData;
+        const { name, email, specialty, location, salon_name, salon_name_na, reset_word, expire_days } = formData;
 
         if (!name || !specialty) return;
+
+        const finalSalonName = salon_name_na ? 'N/A' : salon_name;
 
         const proData = {
             name,
             email,
             category: specialty,
             city: location,
-            salon_name,
+            salon_name: finalSalonName,
             reset_word,
             // Calculate expiration date in YYYY-MM-DD
             expiration_date: (() => {
@@ -348,13 +353,25 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ userEmai
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold uppercase tracking-wider text-text-secondary mb-2">Nome do Salão</label>
-                                    <input
-                                        type="text"
-                                        value={formData.salon_name}
-                                        onChange={e => setFormData({ ...formData, salon_name: e.target.value })}
-                                        className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-[#111418] border border-gray-200 dark:border-gray-800 focus:outline-none focus:border-primary transition-colors font-medium"
-                                        placeholder="Ex: Studio Beauty"
-                                    />
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={formData.salon_name}
+                                            disabled={formData.salon_name_na}
+                                            onChange={e => setFormData({ ...formData, salon_name: e.target.value })}
+                                            className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-[#111418] border border-gray-200 dark:border-gray-800 focus:outline-none focus:border-primary transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                            placeholder="Ex: Studio Beauty"
+                                        />
+                                        <label className="flex items-center gap-2 cursor-pointer bg-gray-50 dark:bg-[#111418] border border-gray-200 dark:border-gray-800 rounded-xl px-3 hover:bg-gray-100 transition-colors">
+                                            <input
+                                                type="checkbox"
+                                                checked={formData.salon_name_na}
+                                                onChange={e => setFormData({ ...formData, salon_name_na: e.target.checked })}
+                                                className="size-4 accent-primary cursor-pointer"
+                                            />
+                                            <span className="text-xs font-bold text-text-secondary whitespace-nowrap">N/A</span>
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
 
